@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+
+<launch>
+
+    <node name="arduino_control" pkg="arduino_control" type="arduino.py" output="screen">
+        <param name="baudrate" value="115200"/>
+        <param name="port" value="/dev/ttyUSB0"/>
+    </node>
+
+
+</launch>
+

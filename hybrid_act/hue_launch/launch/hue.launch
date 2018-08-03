@@ -6,7 +6,7 @@
     <node if="$(arg ir_frame)" required="true" name="ir_corrector" 
         pkg="ir_correction" type="ir_corrector.py" output="screen"/>
 
-    <node name="ws_gen" pkg="ws_generator" type="gui_generator.py" output="screen"/>
+    <node name="ws_gen" pkg="ws_generator" type="main.py" output="screen"/>
 
     <include file="$(find haptic_generator)/launch/haptic.launch"/>
     

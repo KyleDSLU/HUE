@@ -1,5 +1,5 @@
-Header header
-uint32 ystep 
-uint32[] y_ws 
-uint32 intstep
-float32[] intensity 
+string actuation
+uint8 y_step
+uint16[] y_ws
+uint8 int_compress
+int16[] intensity

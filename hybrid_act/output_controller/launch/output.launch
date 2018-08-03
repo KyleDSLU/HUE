@@ -2,28 +2,24 @@
 
 <launch>
 
-    <node name="ev_control" pkg="output_controller" type="output_control.py" output="screen">
-        <param name="name" value="ev"/>
-        <param name="i2c_address" value="44" type="int"/>
-        <param name="scale" value="0.90"/>
+    <node name="hybrid_control" pkg="output_controller" type="force_control.py" output="screen">
+        <param name="name" value="hybrid"/>
+        <param name="hue_version" value="1"/>
+
+        <param name="ufm_case" value="2"/>
+        <param name="ufm_i2c_address" value="45"/>
+
+        <param name="ev_case" value="3"/>
+        <param name="ev_i2c_address" value="44"/>
+
+        <param name="force_case" value="4"/>
+        <param name="force_msg_length" value="9"/>
+
+        <param name="phase_case" value="5"/>
+        <param name="version_case" value="6"/>
     </node>
 
-    <node name="ufm_control" pkg="output_controller" type="output_control.py" output="screen">
-        <param name="name" value="ufm"/>
-        <param name="i2c_address" value="45" type="int"/>
-        <param name="scale" value="0.55"/>
-    </node>
-
-    <node name="ev_frequency" pkg="output_controller" type="frequency_control.py" output="screen">
-        <param name="name" value="ev"/>
-        <param name="arduino_case" value="2"/>
-    </node>
-
-    <node name="ufm_frequency" pkg="output_controller" type="frequency_control.py" output="screen">
-        <param name="name" value="ufm"/>
-        <param name="arduino_case" value="3"/>
-    </node>
-
+    <include file="$(find arduino_control)/launch/arduino.launch"/>
 
 </launch>
 

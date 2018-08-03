@@ -11,6 +11,9 @@ find_package(catkin REQUIRED COMPONENTS
  add_message_files(
    FILES
    IntArray.msg
+   ForceArray.msg
+   ForceChannel.msg
+   UInt8Array.msg
    WSArray.msg
  )
 

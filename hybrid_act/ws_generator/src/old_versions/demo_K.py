@@ -5,18 +5,19 @@ import rospy
 import rospkg
 import numpy as np
 import os
+
+import main
 from std_msgs.msg import String
 from ws_generator.msg import WSArray
 
 ##############################################################################80
-class Texture:
+class OptionList:
     """"""
-
     #----------------------------------------------------------------------
     def __init__(self, id, shape):
         """Constructor"""
         self.id = id
-        self.shape = shape       
+        self.shape = shape
 
 
 ##############################################################################80
@@ -29,46 +30,91 @@ class Frame(wx.Frame):
         self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
         self.rospack = rospkg.RosPack()
         rospy.init_node('gui_ws')
-        
+
         wx.Frame.__init__(self, None, wx.ID_ANY, "Hybridization Comparison")
         self.Maximize(True)
         self.width, self.height = wx.GetDisplaySize()
         self.width_half = self.width/2.0
-        
+
         self.first_rectangle_y = 0.1*self.height
         self.bottom_space = 0.035*self.height
 
         self.rectangle_size = 0.175*self.height
         self.rectangle_seperation = int((self.height-self.first_rectangle_y-self.bottom_space-3*self.rectangle_size)/3.0)
-        
+
         self.rectangle_color = "GREY"
 
         self.textbox_width = 0.20*self.width
         self.textbox_x = 0.04*self.width
         self.textbox_y = self.rectangle_size*0.35
         self.textbox_color = "WHITE"
-        self.textbox_fontsize = 42 
+        self.textbox_fontsize = 42
 
         self.haptic_width = self.width - self.textbox_width
-
+        self.horiz_pixels = np.arange(self.haptic_width)
         self.background_color = "BLACK"
 
         # Add a panel so it looks the correct on all platforms
         self.panel = wx.Panel(self, wx.ID_ANY)
         self.panel.Bind(wx.EVT_PAINT, self.OnPaint)
 
-        textures = [Texture(0, "Bump"),
-                    Texture(1, "Sinusoidal"),
-                    Texture(2, "Triangular"),
-                    Texture(3, "Square")]
+        Frequency_label=wx.StaticText(self.panel,wx.ID_ANY,pos=(0.7*self.width,0.02*self.height),label='Frequency (Hz)')
+        self.Frequency= wx.TextCtrl(self.panel, wx.ID_ANY, pos=(0.7*self.width,0.05*self.height))
+        self.Frequency.Bind(wx.EVT_TEXT, self.checking)
+
+        self.BackBtn = wx.Button(self.panel,wx.ID_ANY,label='BACK',pos=(0,0))
+        self.BackBtn.Bind(wx.EVT_BUTTON,self.BackButton)
+
+        self.SubmitBtn = wx.Button(self.panel,wx.ID_ANY,label='Sumbit',pos=(0.8*self.width,0.05*self.height))
+        self.SubmitBtn.Bind(wx.EVT_BUTTON,self.onSelect)
+
+        textures = [OptionList(0, "Bump"),
+                    OptionList(1, "Sinusoidal"),
+                    OptionList(2, "Triangular"),
+                    OptionList(3, "Square")]
 
         sampleList = []
 
-        self.cb = wx.ComboBox(self.panel,
+        texture_label=wx.StaticText(self.panel,wx.ID_ANY,pos=(0.3*self.width,0.02*self.height),label='Texture')
+        self.textures = wx.ComboBox(self.panel,
                               size=wx.DefaultSize,
                               choices=sampleList,
-                              pos=(0.1*self.width,0.05*self.height))
-        self.widgetMaker(self.cb, textures)
+                              pos=(0.3*self.width,0.05*self.height))
+        self.widgetMaker(self.textures, textures)
+
+        amplitudes=[OptionList(0,'10'), \
+                   OptionList(1,'20'), \
+                   OptionList(2,'30'), \
+                   OptionList(3,'40'), \
+                   OptionList(4,'50'), \
+                   OptionList(5,'60'), \
+                   OptionList(6,'70'), \
+                   OptionList(7,'80'), \
+                   OptionList(8,'90'), \
+                   OptionList(9,'100')]
+
+        EV_label=wx.StaticText(self.panel,wx.ID_ANY,pos=(0.4*self.width,0.02*self.height),label='EV Amplitude')
+        self.Amplitude_EV = wx.ComboBox(self.panel,
+                              size=wx.DefaultSize,
+                              choices=sampleList,
+                              pos=(0.4*self.width,0.05*self.height))
+        self.widgetMaker(self.Amplitude_EV, amplitudes)
+
+        UFM_label=wx.StaticText(self.panel,wx.ID_ANY,pos=(0.5*self.width,0.02*self.height),label='UFM Amplitude')
+        self.Amplitude_UFM = wx.ComboBox(self.panel,
+                              size=wx.DefaultSize,
+                              choices=sampleList,
+                              pos=(0.5*self.width,0.05*self.height))
+        self.widgetMaker(self.Amplitude_UFM, amplitudes)
+
+        H_label=wx.StaticText(self.panel,wx.ID_ANY,pos=(0.6*self.width,0.02*self.height),label='Hybrid Amplitude')
+        self.Amplitude_H = wx.ComboBox(self.panel,
+                              size=wx.DefaultSize,
+                              choices=sampleList,
+                              pos=(0.6*self.width,0.05*self.height))
+        self.widgetMaker(self.Amplitude_H, amplitudes)
+
+        self.SubmitBtn.Disable()
 
         self.Centre()
         self.Show()
@@ -78,11 +124,21 @@ class Frame(wx.Frame):
         #self.panel.SetSizer(sizer)
 
     #----------------------------------------------------------------------
+    def BackButton(self,event):
+        f = main.frameMain(None)
+        self.Close()
+        f.Show()
+
     def widgetMaker(self, widget, objects):
         """"""
         for obj in objects:
             widget.Append(obj.shape, obj)
-        widget.Bind(wx.EVT_COMBOBOX, self.onSelect)
+        widget.Bind(wx.EVT_COMBOBOX, self.checking)
+
+    def checking(self, event):
+        if not (self.textures.GetStringSelection()=='' or self.Amplitude_EV.GetStringSelection()=='' or self.Amplitude_UFM.GetStringSelection()=='' or self.Amplitude_H.GetStringSelection()=='' or self.Frequency.GetValue()==''):
+            self.SubmitBtn.Enable()
+
 
     #----------------------------------------------------------------------
     def OnPaint(self, evt):
@@ -138,59 +194,58 @@ class Frame(wx.Frame):
         dc.DrawRectangle(0, rectangle_y, self.textbox_width, self.rectangle_size)
         textbox = wx.Rect(self.textbox_x, rectangle_y+self.textbox_y)
         dc.DrawLabel("Hybrid", textbox, alignment=1)
-        
+
         dc.EndDrawing()
         del dc
-        
+
     #----------------------------------------------------------------------
     def onSelect(self, event):
-        """"""
-        print "You selected: " + self.cb.GetStringSelection()
-        obj = self.cb.GetClientData(self.cb.GetSelection())
-        text = """
-        The object's attributes are:
-        %s  %s 
+        texture = self.textures.GetStringSelection()
+        Amplitude_EV = float(self.Amplitude_EV.GetStringSelection())/100
+        Amplitude_UFM = float(self.Amplitude_UFM.GetStringSelection())/100
+        Amplitude_H = float(self.Amplitude_H.GetStringSelection())/100
+        freq=(int(self.Frequency.GetValue()))
 
-        """ % (obj.id, obj.shape)
-        print text
-        self.generate_workspace(self.cb.GetStringSelection())
+        self.generate_workspace(texture,Amplitude_EV,Amplitude_UFM,Amplitude_H,freq)
 
-    def generate_workspace(self, texture):
-
-        ufm_intensity = []
-        ev_intensity = []
+    def generate_workspace(self,texture,Amplitude_EV,Amplitude_UFM,Amplitude_H,frequency):
+        ufm_intensity = np.zeros(2*self.haptic_width)
+        ev_intensity = np.zeros(2*self.haptic_width)
 
         """Determine y workspace bounds"""
         y_ws_ufm = []
         y_ws_ev = []
 
         rectangle_y = self.first_rectangle_y
+
         y_ws_ev.append(rectangle_y)
         y_ws_ev.append(rectangle_y+self.rectangle_size)
-        
+
         rectangle_y = rectangle_y + self.rectangle_size + self.rectangle_seperation
-        y_ws_ufm.append(rectangle_y) 
+        y_ws_ufm.append(rectangle_y)
         y_ws_ufm.append(rectangle_y + self.rectangle_size)
-        
+
         rectangle_y = rectangle_y + self.rectangle_size + self.rectangle_seperation
-        y_ws_ev.append(rectangle_y) 
+        y_ws_ev.append(rectangle_y)
         y_ws_ev.append(rectangle_y + self.rectangle_size)
-        y_ws_ufm.append(rectangle_y) 
+        y_ws_ufm.append(rectangle_y)
         y_ws_ufm.append(rectangle_y + self.rectangle_size)
+
+        haptic_width = float(self.haptic_width)
 
         """Determine x intensities correlating with texture"""
         if texture == "Bump":
 
             x_center = (self.haptic_width)/2
             x_biasedcenter = x_center+self.textbox_width
-            
+
             x_haptic_switch = [x_biasedcenter-225,x_biasedcenter+225]
-            x_ufm_dropoff = [x_biasedcenter-400,x_biasedcenter+400] 
-            x_ev_max = [x_biasedcenter-75,x_biasedcenter+75] 
+            x_ufm_dropoff = [x_biasedcenter-400,x_biasedcenter+400]
+            x_ev_max = [x_biasedcenter-75,x_biasedcenter+75]
 
             c1 = (x_haptic_switch[0]-x_biasedcenter)**2
             c2 = (x_ufm_dropoff[0]-x_biasedcenter)**2
-            kufm = -c1/(c2-c1) 
+            kufm = -c1/(c2-c1)
             aufm = (1.0-kufm)/c2
 
             c3 = (x_ev_max[0]-x_biasedcenter)**2
@@ -198,42 +253,48 @@ class Frame(wx.Frame):
             aev = (1.0-kev)/c3
 
             """Set haptic intensity = 0 over textbox"""
-            ufm_intensity = [0]*int(self.textbox_width)
-            ev_intensity = [0]*int(self.textbox_width)
-            
+            ufm_intensity = np.zeros(self.width)
+            ev_intensity = np.zeros(self.width)
+
             for index in range(int(self.haptic_width)):
                 index = index + self.textbox_width
 
                 #print(x_ufm_dropoff, index)
-                if (index <= x_ufm_dropoff[0] or index >= x_ufm_dropoff[1]): 
-                    ufm_intensity.append(1.0)
-                    ev_intensity.append(0.0)
+                if (index <= x_ufm_dropoff[0] or index >= x_ufm_dropoff[1]):
+                    ufm_intensity[index] = 1.0
+                    ev_intensity[index] = 0.0
 
                 else:
                     ufm_int = aufm*(index-x_biasedcenter)**2+kufm
-                    ufm_intensity.append(max(0,min(1,ufm_int)))
+                    ufm_intensity = np.append(ufm_intensity,max(0,min(1,ufm_int)))
 
                     ev_int = aev*(index-x_biasedcenter)**2+kev
-                    ev_intensity.append(max(0,min(1,ev_int))) 
+                    ev_intensity = np.append(ev,intensity,max(0,min(1,ev_int)))
 
-            #print (ufm_intensity)
 
         elif texture == "Sinusoidal":
-            periods = 5
 
             """Set haptic intensity = 0 over textbox"""
-            ufm_intensity = [0]*int(self.textbox_width)
-            ev_intensity = [0]*int(self.textbox_width)
 
-            for index in range(int(self.haptic_width)):
-                sinusoid = np.sin(index/self.haptic_width*periods*2*np.pi)
-                ufm_intensity.append(max(0,sinusoid))
-                ev_intensity.append(max(0,-sinusoid))
+            sinusoid = np.sin(self.horiz_pixels/haptic_width*frequency*2*np.pi)
+            ind = [np.where(sinusoid>0)[0],np.where(sinusoid<=0)[0]]
+            hybridufm_intensity[ind[0]] = sinusoid[ind[0]]
+            hybridev_intensity[ind[1]] = -sinusoid[ind[1]]
+
+            positive_sin = sinusoid/2.+0.5
+            ufm_intensity = positive_sin
+            ev_intensity = positive_sin
+
+            hybridufm_intensity = np.append(zeros(self.textbox_width),hybridufm_intensity))
+            hybridev_intensity = np.append(zeros(self.textbox_width),hybridev_intensity))
+            ufm_intensity = np.append(zeros(self.textbox_width),ufm_intensity)
+            ev_intensity = np.append(zeros(self.textbox_width),ev_intensity)
+
 
         elif texture == "Triangular":
-            periods = 5
+            periods = 1/frequency
             triangle_halfwidth = self.haptic_width/(2.0*2*periods)
-            
+
 
             """Set haptic intensity = 0 over textbox"""
             ufm_intensity = [0]*int(self.textbox_width)
@@ -267,35 +328,44 @@ class Frame(wx.Frame):
                         ev_intensity.append(intensity)
 
         elif texture == "Square":
-            periods = 5
+            square = np.zeros(self.width)
+            sinusoid = np.sin(self.horiz_pixels/haptic_width*frequency*2*np.pi)
+            ind = [np.where(sinusoid>0)[0],np.where(sinusoid<=0)[0]]
+            square[ind[0]] = 1
+            square[ind[1]] = -1
+            hybridufm_intensity[ind[0]] = square[ind[0]]
+            hybridev_intensity[ind[1]] = -square[ind[1]]
+            ufm_intensity = (1+square)/2
+            ev_intensity = (1+square)/2
 
-            """Set haptic intensity = 0 over textbox"""
-            ufm_intensity = [0]*int(self.textbox_width)
-            ev_intensity = [0]*int(self.textbox_width)
+            hybridufm_intensity = np.append(zeros(self.textbox_width),hybridufm_intensity))
+            hybridev_intensity = np.append(zeros(self.textbox_width),hybridev_intensity))
+            ufm_intensity = np.append(zeros(self.textbox_width),ufm_intensity)
+            ev_intensity = np.append(zeros(self.textbox_width),ev_intensity)
 
-            for index in range(int(self.haptic_width)):
-                sinusoid = np.sin(index/self.haptic_width*periods*2*np.pi)
-                if (sinusoid > 0):
-                    ufm_intensity.append(1.0)
-                    ev_intensity.append(0.0)
-                else:
-                    ufm_intensity.append(0.0)
-                    ev_intensity.append(1.0)
+
+
+        ufm_intensity = np.append(ufm_amplitde*ufm_intensity,hybrid_amplitude*hybridufm_intensity)
+        ev_intensity = np.append(zeros(len(self.textbox_width),ev_intensity)
 
         ev_msg = WSArray()
         ev_msg.header.stamp = rospy.Time(0.0)
-        ev_msg.ystep = 2
+        ev_msg.y_step = 2
         ev_msg.y_ws = y_ws_ev
-        ev_msg.intstep = 1
-        ev_msg.intensity = ev_intensity
+        ev_msg.int_step = 2
+        #ev_msg.intensity = ev_intensity
+        print(type(Amplitude_EV))
+        print(type(ev_intensity))
+        #ev_msg.intensity = Amplitude_EV*ev_intensity + Amplitude_H*ev_intensity
         #print ev_intensity
 
         ufm_msg = WSArray()
         ufm_msg.header.stamp = rospy.Time(0.0)
-        ufm_msg.ystep = 2
+        ufm_msg.y_step = 2
         ufm_msg.y_ws = y_ws_ufm
-        ufm_msg.intstep = 1
-        ufm_msg.intensity = ufm_intensity
+        ufm_msg.int_step = 2
+        #ufm_msg.intensity = ufm_intensity
+        #ev_msg.intensity = Amplitude_UFM*ufm_intensity + Amplitude_H*ufm_intensity
         #print ufm_intensity
 
         self.ws_ufm_pub.publish(ufm_msg)
