@@ -2,7 +2,6 @@
 import os
 import time
 import numpy as np
-from scipy import signal
 
 from ws_generator.msg import WSArray
 
@@ -347,7 +346,14 @@ class DemoPanel(wx.Panel):
         elif texture == "Triangular":
             hybridufm_intensity = np.zeros(len(haptic_width))
             hybridev_intensity = np.zeros(len(haptic_width))
-            triangle = signal.sawtooth(2*np.pi*frequency*horiz_pixels/haptic_width)
+            triangle = np.zeros(len(haptic_width))
+            slope = 2.0*frequency/haptic_width
+            triangle[0] = -1.0
+            for i in range(1,len(triangle)):
+                if triangle[i-1] >= 1.0:
+                    triangle[i] = -1.0
+                else:
+                    triangle[i] = min(1.0,triangle[i]+slope)
             ind = [np.where(triangle>0)[0], np.where(triangle<=0)[0]]
             hybridufm_intensity[ind[1]] = triangle[ind[1]]
             hybridev_intensity[ind[0]] = triangle[ind[0]]
@@ -365,8 +371,11 @@ class DemoPanel(wx.Panel):
         elif texture == "Square":
             hybridufm_intensity = np.zeros(len(haptic_width))
             hybridev_intensity = np.zeros(len(haptic_width))
-            square = signal.square(2*np.pi*frequency*horiz_pixels/haptic_width)
-            ind = [np.where(square>0)[0],np.where(square<=0)[0]]
+            sinusoid = np.sin(2*np.pi*frequency*horiz_pixels/haptic_width)
+            ind = [np.where(sinusoid>0)[0],np.where<=0)[0]]
+            square = np.zeros(len(sinusoid))
+            square[ind[0]] = 1
+            square[ind[1]] = -1
             hybridufm_intensity[ind[1]] = -square[ind[1]]
             hybridev_intensity[ind[0]] = square[ind[0]]
             ufm_intensity = (1+square)/2
