@@ -7,6 +7,15 @@ import wx
 
 import main
 
+##############################################################################80
+#class Texture:
+#    """"""
+#    def __init__(self, id, shape):
+#        """Constructor"""
+#        self.id = id
+#        self.shape = shape
+
+##############################################################################80
 class GuiFrame(wx.Frame):
     #----------------------------------------------------------------------
     def __init__(self):
@@ -15,22 +24,23 @@ class GuiFrame(wx.Frame):
         self.width, self.height = wx.GetDisplaySize()
         self.width_half = self.width/2.0
 
-        self.FIRST_RECTANGLE_Y = 0.1*self.height
-        self.BOTTOM_SPACE = 0.035*self.height
+        self.first_rectangle_y = 0.1*self.height
+        self.bottom_space = 0.035*self.height
 
-        self.RECTANGLE_SIZE = 0.175*self.height
-        self.RECTANGLE_SEPERATION = int((self.height-self.FIRST_RECTANGLE_Y-self.BOTTOM_SPACE-3*self.RECTANGLE_SIZE)/3.0)
+        self.rectangle_size = 0.175*self.height
+        self.rectangle_seperation = int((self.height-self.first_rectangle_y-self.bottom_space-3*self.rectangle_size)/3.0)
 
         #set up textbox and lines
-        self.TEXTBOX_WIDTH = self.width
-        self.TEXTBOX_X = 0.04*self.width
-        self.TEXTBOX_Y = self.RECTANGLE_SIZE*0.35
-        self.RECTANGLE_COLOR = "WHITE"
+        self.textbox_width = self.width
+        self.textbox_x = 0.04*self.width
+        self.textbox_y = self.rectangle_size*0.35
+        self.rectangle_color = "WHITE"
         self.textbox_fontsize = int(42*((self.width*self.height)/(1794816.)))
 
-        self.HAPTIC_WIDTH = self.width
+        self.haptic_width = self.width
+        self.horiz_pixels = np.arange(self.haptic_width)
 
-        self.BACKGROUND_COLOR = "BLACK"
+        self.background_color = "BLACK"
 
         # Add a panel so it looks correct on all platforms
         self.panel = wx.Panel(self, wx.ID_ANY)
@@ -68,55 +78,56 @@ class GuiFrame(wx.Frame):
         """set up the device for painting"""
         dc = wx.PaintDC(self.panel)
         dc.BeginDrawing()
-        brush = wx.Brush(self.BACKGROUND_COLOR)
+        brush = wx.Brush(self.background_color)
         dc.SetBackground(brush)
         dc.Clear()
         dc.SetFont(wx.Font(self.textbox_fontsize, wx.ROMAN, wx.FONTSTYLE_NORMAL, wx.NORMAL))
 
         """Rectangle 1"""
-        RECTANGLE_Y = self.FIRST_RECTANGLE_Y
-        dc.SetPen(wx.Pen(self.RECTANGLE_COLOR))
-        dc.SetBrush(wx.Brush(self.RECTANGLE_COLOR))
-        dc.DrawRectangle(0,RECTANGLE_Y, self.width, self.RECTANGLE_SIZE)
-        textbox = wx.Rect(self.TEXTBOX_X, RECTANGLE_Y+self.TEXTBOX_Y)
+        rectangle_y = self.first_rectangle_y
+        dc.SetPen(wx.Pen(self.rectangle_color))
+        dc.SetBrush(wx.Brush(self.rectangle_color))
+        dc.DrawRectangle(0,rectangle_y, self.width, self.rectangle_size)
+        textbox = wx.Rect(self.textbox_x, rectangle_y+self.textbox_y)
         dc.DrawLabel("1)", textbox, alignment=1)
 
         """Rectangle 2"""
-        RECTANGLE_Y = self.FIRST_RECTANGLE_Y+(self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
-        dc.DrawRectangle(0,RECTANGLE_Y, self.width, self.RECTANGLE_SIZE)
-        textbox = wx.Rect(self.TEXTBOX_X, RECTANGLE_Y+self.TEXTBOX_Y)
+        rectangle_y = self.first_rectangle_y+(self.rectangle_size+self.rectangle_seperation)
+        dc.DrawRectangle(0,rectangle_y, self.width, self.rectangle_size)
+        textbox = wx.Rect(self.textbox_x, rectangle_y+self.textbox_y)
         dc.DrawLabel("2)", textbox, alignment=1)
         dc.EndDrawing()
         del dc
 
     def generate_ws(self):
-        intensity = np.zeros([4,self.HAPTIC_WIDTH])
+        intensity = np.zeros([4,self.haptic_width])
         """Determine y workspace bounds"""
         y_ws = np.zeros([2,2])
-        RECTANGLE_Y = self.FIRST_RECTANGLE_Y
-        y_ws[0] = [RECTANGLE_Y,RECTANGLE_Y+self.RECTANGLE_SIZE]
-        RECTANGLE_Y = RECTANGLE_Y + self.RECTANGLE_SIZE + self.RECTANGLE_SEPERATION
-        y_ws[1] = [RECTANGLE_Y,RECTANGLE_Y + self.RECTANGLE_SIZE]
+        rectangle_y = self.first_rectangle_y
+        y_ws[0] = [rectangle_y,rectangle_y+self.rectangle_size]
+        rectangle_y = rectangle_y + self.rectangle_size + self.rectangle_seperation
+        y_ws[1] = [rectangle_y,rectangle_y + self.rectangle_size]
 
-        HAPTIC_WIDTH = float(self.HAPTIC_WIDTH)
-        horiz_pixels = np.arange(HAPTIC_WIDTH)
+        haptic_width = float(self.haptic_width)
 
         # output has form of channel: actuation, amplitude, texture, frequency
         for i,value in enumerate(self.rand_output.values()):
+            print(len(self.rand_output.values()))
+            print(self.rand_output.values()[0])
             amp = int(value[1]*100)
             if value[2] == "Sinusoid":
                 if value[0] == "Hybrid":
-                    sinusoid = amp*np.sin(horiz_pixels/HAPTIC_WIDTH*value[3]*2*np.pi)
+                    sinusoid = amp*np.sin(self.horiz_pixels/haptic_width*value[3]*2*np.pi)
                     ind = [np.where(sinusoid>0)[0], np.where(sinusoid<=0)[0]]
                     intensity[2*i][ind[0]] = sinusoid[ind[0]]
                     intensity[2*i+1][ind[1]] = -sinusoid[ind[1]]
                 elif value[0] == "UFM":
-                    intensity[2*i] = amp/2*np.sin(horiz_pixels/HAPTIC_WIDTH*value[3]*2*np.pi) + amp/2
+                    intensity[2*i] = amp/2*np.sin(self.horiz_pixels/haptic_width*value[3]*2*np.pi) + amp/2
                 elif value[0] == "EV":
-                    intensity[2*i+1] = amp/2*np.sin(horiz_pixels/HAPTIC_WIDTH*value[3]*2*np.pi) + amp/2
+                    intensity[2*i+1] = amp/2*np.sin(self.horiz_pixels/haptic_width*value[3]*2*np.pi) + amp/2
 
             elif value[2]  == "Square":
-                sinusoid = np.sin(horiz_pixels/HAPTIC_WIDTH*value[3]*2*np.pi)
+                sinusoid = np.sin(self.horiz_pixels/haptic_width*value[3]*2*np.pi)
                 ind = [np.where(sinusoid>0)[0], np.where(sinusoid<=0)[0]]
 
                 if value[0] == "Hybrid":

@@ -11,10 +11,10 @@ import time
 
 #Other GUI utilites
 import main
-import utils
+import start_utils
 
 
-class Frame(utils.GuiFrame):
+class Frame(start_utils.GuiFrame):
     #----------------------------------------------------------------------
     def __init__(self,csvfile):
         """"""
@@ -22,7 +22,10 @@ class Frame(utils.GuiFrame):
         # self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
         # rospy.init_node('start_ws')
 
-        utils.GuiFrame.__init__(self)
+        self.REFRESH_RATE = 20
+        self.SCREEN_LENGTH = 15
+        self.BALL_VELOCITY = 10     #cm/s
+        start_utils.GuiFrame.__init__(self, self.BALL_VELOCITY, self.REFRESH_RATE, self.SCREEN_LENGTH)
 
         self.CSVFILE = csvfile
 
@@ -53,8 +56,8 @@ class Frame(utils.GuiFrame):
 
         self.determine_next_test()
         self.determine_next_condition()
+
         # Generate Gui
-        self.layout()
         self.Centre()
         self.Show()
         # Generate ws
@@ -107,7 +110,7 @@ class Frame(utils.GuiFrame):
 
             self.randomize_output()
             self.define_correct_selection()
-            intensity, y_ws = self.generate_ws()
+            intensity, y_ws = self.panel.generate_ws(self)
             # self.publish_intensity(intensity,y_ws)
 
         else:
