@@ -1,13 +1,13 @@
 #! /usr/bin/env python
 import wx
 import os
-# import rospy
+import rospy
 
 import random
 import time
 
-# from ws_generator.msg import WSArray
-# from std_msgs.msg import String
+from ws_generator.msg import WSArray
+from std_msgs.msg import String
 
 #Other GUI utilites
 import main
@@ -18,9 +18,9 @@ class Frame(start_utils.GuiFrame):
     #----------------------------------------------------------------------
     def __init__(self,csvfile):
         """"""
-        # self.ws_ufm_pub = rospy.Publisher('/cursor_position/workspace/ufm', WSArray, queue_size = 0)
-        # self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
-        # rospy.init_node('start_ws')
+        self.ws_ufm_pub = rospy.Publisher('/cursor_position/workspace/ufm', WSArray, queue_size = 0)
+        self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
+        rospy.init_node('start_ws')
 
         self.REFRESH_RATE = 20
         self.SCREEN_LENGTH = 15
@@ -60,8 +60,6 @@ class Frame(start_utils.GuiFrame):
         # Generate Gui
         self.Centre()
         self.Show()
-        # Generate ws
-        # self.generate_ws()
 
     def option(self,event,selected):
         #print a message to confirm if the user is happy with the option selected
@@ -111,7 +109,7 @@ class Frame(start_utils.GuiFrame):
             self.randomize_output()
             self.define_correct_selection()
             intensity, y_ws = self.panel.generate_ws(self)
-            # self.publish_intensity(intensity,y_ws)
+            self.publish_intensity(intensity,y_ws)
 
         else:
             # reset Threshold flips
@@ -142,21 +140,21 @@ class Frame(start_utils.GuiFrame):
             fout.write(s)
             fout.close()
 
-    # def publish_intensity(self,intensity,y_ws):
-        # ufm_msg = WSArray()
-        # ufm_msg.header.stamp = rospy.Time(0.0)
-        # ufm_msg.y_step = 2
-        # ufm_msg.y_ws = y_ws[0] + y_ws[1]
-        # ufm_msg.intensity = intensity[0] + intensity[2]
+    def publish_intensity(self,intensity,y_ws):
+        ufm_msg = WSArray()
+        ufm_msg.header.stamp = rospy.Time(0.0)
+        ufm_msg.y_step = 2
+        ufm_msg.y_ws = y_ws[0] + y_ws[1]
+        ufm_msg.intensity = intensity[0] + intensity[2]
 
-        # ev_msg = WSArray()
-        # ev_msg.header.stamp = rospy.Time(0.0)
-        # ev_msg.y_step = 2
-        # ev_msg.y_ws = y_ws[0] + y_ws[1]
-        # ev_msg.intensity = intensity[1] + intensity[3]
+        ev_msg = WSArray()
+        ev_msg.header.stamp = rospy.Time(0.0)
+        ev_msg.y_step = 2
+        ev_msg.y_ws = y_ws[0] + y_ws[1]
+        ev_msg.intensity = intensity[1] + intensity[3]
 
-        # self.ws_ufm_pub.publish(ufm_msg)
-        # self.ws_ev_pub.publish(ev_msg)
+        self.ws_ufm_pub.publish(ufm_msg)
+        self.ws_ev_pub.publish(ev_msg)
 
     def hybridization_set(self):
         # construct conditions in the form of, test#: test_id, test_actuation, control_actuation, texture, freq

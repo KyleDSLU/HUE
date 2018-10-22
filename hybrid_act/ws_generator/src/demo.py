@@ -1,15 +1,8 @@
 #! /usr/bin/env python
 import wx
-import os
-# import rospy
-
-import random
-import time
-
-# from ws_generator.msg import WSArray
-# from std_msgs.msg import String
 
 #Other GUI utilites
+from ws_generator.msg import WSArray
 import main
 import demo_utils
 
@@ -18,9 +11,9 @@ class Frame(demo_utils.DemoFrame):
     #----------------------------------------------------------------------
     def __init__(self,csvfile):
         """"""
-        # self.ws_ufm_pub = rospy.Publisher('/cursor_position/workspace/ufm', WSArray, queue_size = 0)
-        # self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
-        # rospy.init_node('start_ws')
+        self.ws_ufm_pub = rospy.Publisher('/cursor_position/workspace/ufm', WSArray, queue_size = 0)
+        self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
+        rospy.init_node('start_ws')
 
         self.REFRESH_RATE = 20
         self.SCREEN_LENGTH = 15
@@ -30,8 +23,6 @@ class Frame(demo_utils.DemoFrame):
         # Generate Gui
         self.Centre()
         self.Show()
-        # Generate ws
-        # self.generate_ws()
 
 # Run the program
 if __name__ == "__main__":

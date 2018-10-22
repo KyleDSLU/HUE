@@ -158,8 +158,7 @@ class GuiPanel(wx.Panel):
                 elif value[0] == "EV":
                     intensity[2*i+1][ind[1]] = amp
 
-        self.start_time = time.time()
-        return intensity.astype(int).tolist(), y_ws.astype(int).tolist()
+        return intensity.astype(int).tolist(), y_ws.astype(int).tolist(), time.time()
 
     def _background(self, evt, dc):
         """set up the device for painting"""

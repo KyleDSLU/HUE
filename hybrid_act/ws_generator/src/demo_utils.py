@@ -4,6 +4,8 @@ import time
 import numpy as np
 from scipy import signal
 
+from ws_generator.msg import WSArray
+
 import wx
 import main
 
@@ -45,6 +47,7 @@ class OptionList:
 class DemoPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):
         wx.Panel.__init__(self, parent)
+        self.parent = parent
         self.ball = [[],[],[]]
         self.last_pos = self.ScreenToClient(wx.GetMousePosition())
         self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
@@ -263,9 +266,6 @@ class DemoPanel(wx.Panel):
         self.SubmitBtn.Disable()
 
     def generate_workspace(self,texture,Amplitude_EV,Amplitude_UFM,Amplitude_H,frequency):
-        ufm_intensity = np.zeros(2*self.WIDTH)
-        ev_intensity = np.zeros(2*self.WIDTH)
-
         """Determine y workspace bounds"""
         y_ws_ufm = []
         y_ws_ev = []
@@ -290,7 +290,6 @@ class DemoPanel(wx.Panel):
 
         """Determine x intensities correlating with texture"""
         if texture == "Bump":
-
             x_center = (haptic_width)/2
             x_biasedcenter = x_center+self.TEXTBOX_WIDTH
 
@@ -327,7 +326,6 @@ class DemoPanel(wx.Panel):
             hybridev_intensity = ev_intensity
             hybridufm_intensity = ufm_intensity
 
-
         elif texture == "Sinusoidal":
             hybridufm_intensity = np.zeros(len(haptic_width))
             hybridev_intensity = np.zeros(len(haptic_width))
@@ -345,7 +343,6 @@ class DemoPanel(wx.Panel):
             hybridev_intensity = np.append(zeros(self.TEXTBOX_WIDTH),hybridev_intensity)
             ufm_intensity = np.append(zeros(self.TEXTBOX_WIDTH),ufm_intensity)
             ev_intensity = np.append(zeros(self.TEXTBOX_WIDTH),ev_intensity)
-
 
         elif texture == "Triangular":
             hybridufm_intensity = np.zeros(len(haptic_width))
@@ -384,23 +381,25 @@ class DemoPanel(wx.Panel):
 
         ufm_intensity = np.append(ufm_amplitde*ufm_intensity,hybrid_amplitude*hybridufm_intensity)
         ev_intensity = np.append(ev_amplitde*ev_intensity,hybrid_amplitude*hybridev_intensity)
+        intensity = np.append(ufm_intensity,ev_intensity)
+        y_ws = np.append(y_ws_ufm,y_ws_ev)
 
         ev_msg = WSArray()
         ev_msg.header.stamp = rospy.Time(0.0)
         ev_msg.y_step = 2
         ev_msg.y_ws = y_ws_ev
         ev_msg.int_step = 2
-        ev_msg.intensity = ev_intensity
+        ev_msg.intensity = ev_intensity.astype(int).tolist()
 
         ufm_msg = WSArray()
         ufm_msg.header.stamp = rospy.Time(0.0)
         ufm_msg.y_step = 2
         ufm_msg.y_ws = y_ws_ufm
         ufm_msg.int_step = 2
-        ufm_msg.intensity = ufm_intensity
+        ufm_msg.intensity = ufm_intensity.astype(int).tolist()
 
-        # self.ws_ufm_pub.publish(ufm_msg)
-        # self.ws_ev_pub.publish(ev_msg)
+        self.parent.ws_ufm_pub.publish(ufm_msg)
+        self.parent.ws_ev_pub.publish(ev_msg)
 
 class DemoFrame(wx.Frame):
     def __init__(self, velocity, refresh, length, *args, **kw):
