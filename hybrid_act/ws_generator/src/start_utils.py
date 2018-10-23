@@ -109,7 +109,7 @@ class GuiPanel(wx.Panel):
                 if ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS:
                     self.wait_count[i] = 0
                     ball.move_forward(dc,self.BALL_MOVEX)
-                    parent.publish_force_status(True)
+                    parent.publish_master_status(True,True)
                     break
             elif ball.x != self.BALL_START[i][0]:
                 if self.wait_count[i] < self.WAIT:
@@ -119,10 +119,9 @@ class GuiPanel(wx.Panel):
                 else:
                     self.wait_count[i] = 0
                     ball.move_ball(dc,self.BALL_START[i])
-                    parent.publish_force_status(False)
             else:
                 ball.move_ball(dc,self.BALL_START[i])
-                parent.publish_force_status(False)
+                parent.publish_force_status(False,False)
 
     def generate_ws(self,parent):
         intensity = np.zeros([4,self.HAPTIC_WIDTH])

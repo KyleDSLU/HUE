@@ -11,9 +11,16 @@ class Frame(demo_utils.DemoFrame):
     #----------------------------------------------------------------------
     def __init__(self,csvfile):
         """"""
+        rospy.init_node('demo_ws')
         self.ws_ufm_pub = rospy.Publisher('/cursor_position/workspace/ufm', WSArray, queue_size = 0)
         self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
-        rospy.init_node('start_ws')
+        self.master_force_pub = rospy.Publisher('/hue_master/force', Bool, queue_size = 0)
+        self.master_actuation_pub = rospy.Publisher('/hue_master/actuation', Bool, queue_size = 0)
+
+        b = Bool
+        b.data = True
+        self.master_force_pub(b)
+        self.master_actuation_pub(b)
 
         self.REFRESH_RATE = 20
         self.SCREEN_LENGTH = 15

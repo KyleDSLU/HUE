@@ -18,12 +18,13 @@ class Frame(start_utils.GuiFrame):
     #----------------------------------------------------------------------
     def __init__(self,csvfile):
         """"""
+        rospy.init_node('start_ws')
         self.ws_ufm_pub = rospy.Publisher('/cursor_position/workspace/ufm', WSArray, queue_size = 0)
         self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
-        self.force_status_pub = rospy.Publisher('/cursor_position/workspace/force_status', Bool, queue_size = 0)
+        self.master_force_pub = rospy.Publisher('/hue_master/force', Bool, queue_size = 0)
+        self.master_actuation_pub = rospy.Publisher('/hue_master/actuation', Bool, queue_size = 0)
         self.force_sub = rospy.Publisher('/cursor_position/force/force_list', IntArray, self.force_callback, queue_size = 0)
         self.x_sub = rospy.Publisher('/cursor_position/force/x_position', IntArray, self.x_callback, queue_size = 0)
-        rospy.init_node('start_ws')
 
         self.force_list = []
         self.x_list = []
@@ -108,8 +109,13 @@ class Frame(start_utils.GuiFrame):
         if self.THRESHOLD_FLIPS < self.SIG_THRESHOLDS or self.FINISH_FLAG:
             if not self.ws_output:
                 # Construct output in the form of, channel: actuation, amplitude, texture, frequency
-                self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
-                                  1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
+                if self.tc[0] = 1:
+                    self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
+                                      1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
+                elif self.tc[0] = 2:
+                    self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
+                                      1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
+
             if self.CORRECT == True:
                 # increase amplitude of test condition to make test harder
                 self.ws_output[0][1] += self.DELTA_AMPLITUDE
@@ -171,10 +177,13 @@ class Frame(start_utils.GuiFrame):
         self.ws_ufm_pub.publish(ufm_msg)
         self.ws_ev_pub.publish(ev_msg)
 
-    def publish_force_status(self, status):
+    def publish_master_status(self, force_status, actuation_status):
         b = Bool()
-        b.data = True
-        self.force_status_pub.Publish(b)
+        b.data = force_status
+        self.master_force_pub.Publish(b)
+        b = Bool()
+        b.data = actuation_status
+        self.master_actuation_pub.Publish(b)
 
     def hybridization_set(self):
         # construct conditions in the form of, test#: test_id, test_actuation, control_actuation, texture, freq
@@ -182,6 +191,12 @@ class Frame(start_utils.GuiFrame):
                                 1:[1,"Hybrid","UFM","Sinusoid",5], \
                                 2:[1,"UFM","Hybrid","Sinusoid",5], \
                                 3:[1,"EV","Hybrid","Sinusoid",5]}
+
+    def amplitude_set(self):
+        self.test_conditions = {0:[2,"Hybrid","Hybrid","Sinusoid",5], \
+                                1:[2,"Hybrid","Hybrid","Sinusoid",5], \
+                                2:[2,"UFM","Hybrid","Sinusoid",5], \
+                                3:[2,"EV","Hybrid","Sinusoid",5]}
 
     def randomize_output(self):
         # randomize channel 0 and 1
