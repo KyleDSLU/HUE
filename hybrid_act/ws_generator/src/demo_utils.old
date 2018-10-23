@@ -44,11 +44,12 @@ class OptionList:
         self.id = id
         self.shape = shape
 
-class BallPanel(wx.Panel):
+class DemoPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):
         wx.Panel.__init__(self, parent)
         self.parent = parent
         self.ball = [[],[],[]]
+        self.rospack = rospkg.RosPack()
         self.last_pos = self.ScreenToClient(wx.GetMousePosition())
         self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
         self.SetBackgroundColour("BLACK")
@@ -66,64 +67,6 @@ class BallPanel(wx.Panel):
         self.on_size(0)
 
         wx.CallLater(200, self.SetFocus)
-
-    def update_drawing(self):
-        self.Refresh(True)
-
-    def on_paint(self, event):
-        x, y = self.ScreenToClient(wx.GetMousePosition())
-        dc = wx.AutoBufferedPaintDC(self)
-        dc.Clear()
-
-        for i,ball in enumerate(self.ball):
-            if ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS:
-                if ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS:
-                    self.wait_count[i] = 0
-                    ball.move_forward(dc,self.BALL_MOVEX)
-                    break
-            elif ball.x != self.BALL_START[i][0]:
-                if self.wait_count[i] < self.WAIT:
-                    self.wait_count[i] += 1
-                    ball.hold_ball(dc)
-                    break
-                else:
-                    self.wait_count[i] = 0
-                    ball.move_ball(dc,self.BALL_START[i])
-            else:
-                ball.move_ball(dc,self.BALL_START[i])
-
-    def on_size(self, event):
-        self.WIDTH, self.HEIGHT = self.GetClientSize()
-        self.FIRST_RECTANGLE_Y = 0.1*self.HEIGHT
-        self.BOTTOM_SPACE = 0.035*self.HEIGHT
-
-        self.RECTANGLE_SIZE = 0.175*self.HEIGHT
-        self.RECTANGLE_SEPERATION = int((self.HEIGHT-self.FIRST_RECTANGLE_Y-self.BOTTOM_SPACE-3*self.RECTANGLE_SIZE)/3.0)
-        self.TEXTBOX_WIDTH = 0.20*self.WIDTH
-
-        #set up textbox and lines
-        self.BALL_RADIUS = int(self.RECTANGLE_SIZE/2*1.1)
-        self.BALL_YOFFSET = -0.0125*self.HEIGHT
-        self.BALL_LEFTMARGIN = 0.95*self.BALL_RADIUS+self.TEXTBOX_WIDTH
-        self.BALL_RIGHTMARGIN = self.WIDTH-1.2*self.BALL_RADIUS
-        first_ball_start = int(self.FIRST_RECTANGLE_Y+self.BALL_RADIUS+self.BALL_YOFFSET)
-        second_ball_start = int(first_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
-        third_ball_start = int(second_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
-        self.BALL_START = [[self.BALL_LEFTMARGIN,first_ball_start],[self.BALL_LEFTMARGIN,second_ball_start],[self.BALL_LEFTMARGIN,third_ball_start]]
-
-        for i in range(len(self.ball)):
-            self.ball[i] = Ball(self.BALL_START[i],self.BALL_RADIUS,self.BALL_RIGHTMARGIN)
-
-        self.BALL_MOVEX = int(self.BALL_VELOCITY*self.REFRESH*self.WIDTH/(2450.*self.LENGTH))
-        self.update_drawing()
-
-
-class BackgroundPanel(wx.Panel):
-
-    def __init__(self,parent):
-        wx.Panel.__init__(self, parent)
-        self.parent = parent
-        self.Bind(wx.EVT_SIZE, self.on_size)
 
     def on_size(self, event):
         self.WIDTH, self.HEIGHT = self.GetClientSize()
@@ -145,8 +88,48 @@ class BackgroundPanel(wx.Panel):
 
         self.HAPTIC_WIDTH = self.WIDTH - self.TEXTBOX_WIDTH
 
+        self.BALL_RADIUS = int(self.RECTANGLE_SIZE/2*1.1)
+        self.BALL_YOFFSET = -0.0125*self.HEIGHT
+        self.BALL_LEFTMARGIN = 0.95*self.BALL_RADIUS+self.TEXTBOX_WIDTH
+        self.BALL_RIGHTMARGIN = self.WIDTH-1.2*self.BALL_RADIUS
+        first_ball_start = int(self.FIRST_RECTANGLE_Y+self.BALL_RADIUS+self.BALL_YOFFSET)
+        second_ball_start = int(first_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
+        #second_ball_start = int(self.FIRST_RECTANGLE_Y+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION+self.BALL_RADIUS+self.BALL_YOFFSET)
+        third_ball_start = int(second_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
+        self.BALL_START = [[self.BALL_LEFTMARGIN,first_ball_start],[self.BALL_LEFTMARGIN,second_ball_start],[self.BALL_LEFTMARGIN,third_ball_start]]
+
+        for i in range(len(self.ball)):
+            self.ball[i] = Ball(self.BALL_START[i],self.BALL_RADIUS,self.BALL_RIGHTMARGIN)
+
+        self.BALL_MOVEX = int(self.BALL_VELOCITY*self.REFRESH*self.WIDTH/(2450.*self.LENGTH))
         self._layout()
-        self._background()
+        self.update_drawing()
+
+    def update_drawing(self):
+        self.Refresh(True)
+
+    def on_paint(self, event):
+        x, y = self.ScreenToClient(wx.GetMousePosition())
+        dc = wx.AutoBufferedPaintDC(self)
+        dc.Clear()
+        #self._background(event,dc)
+
+        for i,ball in enumerate(self.ball):
+            if ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS:
+                if ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS:
+                    self.wait_count[i] = 0
+                    ball.move_forward(dc,self.BALL_MOVEX)
+                    break
+            elif ball.x != self.BALL_START[i][0]:
+                if self.wait_count[i] < self.WAIT:
+                    self.wait_count[i] += 1
+                    ball.hold_ball(dc)
+                    break
+                else:
+                    self.wait_count[i] = 0
+                    ball.move_ball(dc,self.BALL_START[i])
+            else:
+                ball.move_ball(dc,self.BALL_START[i])
 
     def on_select(self, event):
         texture = self.textures.GetStringSelection()
@@ -174,15 +157,9 @@ class BackgroundPanel(wx.Panel):
         if not (self.textures.GetStringSelection()=='' or self.Amplitude_EV.GetStringSelection()=='' or self.Amplitude_UFM.GetStringSelection()=='' or self.Amplitude_H.GetStringSelection()=='' or self.Frequency.GetValue()==''):
             self.SubmitBtn.Enable()
 
-    def _background(self):
+    def _background(self, evt, dc):
         if self.WIDTH > 20 and self.HEIGHT > 20:
-            dc = wx.PaintDC(self)
-            dc.SetBrush(wx.TRANSPARENT_BRUSH)
-            dc.SetPen(wx.TRANSPARENT_PEN)
-            w,h = self.GetSizeTuple()
-            dc.DrawRectangle(0,0,w,h)
             """set up the device for painting"""
-            dc.Clear()
             path = self.rospack.get_path('ws_generator')
             path = os.path.join(path, 'ref/haptics_symp.png')
             picture = wx.Bitmap(path)
@@ -439,21 +416,20 @@ class DemoFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Bind(wx.EVT_TIMER, self.on_timer)
 
-        #self.ball_panel = BallPanel(self, velocity, refresh, length)
-        self.background_panel = BackgroundPanel(self)
-        #self.timer = wx.Timer(self)
-        #self.timer.Start(refresh)
+        self.panel = DemoPanel(self, velocity, refresh, length)
+        self.timer = wx.Timer(self)
+        self.timer.Start(refresh)
 
     def on_close(self, event):
         self.timer.Stop()
         self.Destroy()
 
     def on_timer(self, event):
-        self.ball_panel.update_drawing()
+        self.panel.update_drawing()
 
 if __name__ == '__main__':
     app = wx.App(False)
-    frame = DemoFrame(5, 20, 15)
+    frame = DemoFrame(10, 20, 15)
     frame.Show(True)
     app.MainLoop()
 

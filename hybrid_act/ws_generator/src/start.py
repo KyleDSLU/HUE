@@ -109,10 +109,10 @@ class Frame(start_utils.GuiFrame):
         if self.THRESHOLD_FLIPS < self.SIG_THRESHOLDS or self.FINISH_FLAG:
             if not self.ws_output:
                 # Construct output in the form of, channel: actuation, amplitude, texture, frequency
-                if self.tc[0] = 1:
+                if self.tc[0] == 1:
                     self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
                                       1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
-                elif self.tc[0] = 2:
+                elif self.tc[0] == 2:
                     self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
                                       1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
 

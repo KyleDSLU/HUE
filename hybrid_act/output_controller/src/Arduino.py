@@ -2,28 +2,31 @@
 import serial
 import time
 import struct
+import numpy as np
 
 class ArduinoController():
 
-    def __init__(self,port=None,baudrate=57600,timeout=.25):
+    def __init__(self, port = None, baudrate = 57600, timeout = .25):
+        self.ser = None
         if port:
             self.init_port(port,baudrate,timeout)
-        else:
-            self.ser = None
 
     def send_receive(self,arduino_case,msg=None,encoding=None):
         if self.ser:
-            packet = struct.pack('B',arduino_case)
+            packet = bytearray(struct.pack('B',arduino_case))
+            print(packet,msg)
             if msg:
                 packet += struct.pack(encoding,msg)
 
-            response = self.ser.send_receive_arduino(packet, 1)
+            response = self.send_receive_arduino(packet, 1)
             return response[1:]
 
         else:
             print ('Serial Communication not Established')
 
     def send_receive_arduino(self,packet,incoming_msgsize):
+        print(packet, len(packet))
+    
         checksum = sum(packet) & 0xFF
         checksum_received = None
         resend_count = 0
@@ -39,10 +42,10 @@ class ArduinoController():
                     raise RuntimeError
 
             # write outgoing_packet
-            ser.write(packet)
+            self.ser.write(packet)
 
             # Read data packet off of serial line, we know how large this data should be..
-            data = ser.read(incoming_msgsize)
+            data =self.ser.read(incoming_msgsize)
             if len(data) < incoming_msgsize:
                 resend_count += 1
                 print('Data read in is shorter than expected message size')
@@ -54,10 +57,10 @@ class ArduinoController():
         if self.ser:
             self.ser.close()
         else:
-            self.ser = serial.Serial(port = port,baudrate = baudrate , timeout = timeaout)
+            self.ser = serial.Serial(port = port, baudrate = baudrate, timeout = timeout)
             time.sleep(2)
             count = 0
-            while not ser.isOpen():
+            while not self.ser.isOpen():
                 count += 1
                 if count > 1e5:
                     raise RuntimeError
@@ -67,5 +70,5 @@ class ArduinoController():
             self.ser.close()
 
 if ( __name__ == "__main__" ):
-    arduino = frequency_controller(port = '/dev/ttyACM1', baudrate = 115200)
+    arduino = frequency_controller(port = '/dev/ttyARDUINO', baudrate = 57600)
 
