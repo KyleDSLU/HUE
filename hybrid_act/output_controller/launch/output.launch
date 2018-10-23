@@ -16,5 +16,9 @@
         <param name="arduino_case" value="3"/>
     </node>
 
+    <node name="force_control" pkg="output_controller" type="force_control.py" output="screen">
+        <param name="arduino_case" value="4"/>
+    </node>
+
 </launch>
 

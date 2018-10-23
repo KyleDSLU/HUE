@@ -1,15 +1,13 @@
 #! /usr/bin.env python
 import serial
 import time
-import datetime
 import struct
 
-class ArduinoController(): 
+class ArduinoController():
 
     def __init__(self,port=None,baudrate=57600,timeout=.25):
         if port:
-            self.initPort(
-
+            self.init_port(port,baudrate,timeout)
         else:
             self.ser = None
 
@@ -20,8 +18,7 @@ class ArduinoController():
                 packet += struct.pack(encoding,msg)
 
             response = self.ser.send_receive_arduino(packet, 1)
-            output = struct.unpack('>H', response[1:])[0]
-            return output
+            return response[1:]
 
         else:
             print ('Serial Communication not Established')
@@ -40,10 +37,10 @@ class ArduinoController():
                 else:
                     print('Message Timeout to Arduino')
                     raise RuntimeError
-            
+
             # write outgoing_packet
             ser.write(packet)
-                
+
             # Read data packet off of serial line, we know how large this data should be..
             data = ser.read(incoming_msgsize)
             if len(data) < incoming_msgsize:
@@ -52,8 +49,8 @@ class ArduinoController():
             else:
                 checksum_received = struct.unpack('B',data[0])[0]
         return data
-       
-    def initPort(self, port, baudrate, timeout = 0.25):
+
+    def init_port(self, port, baudrate, timeout = 0.25):
         if self.ser:
             self.ser.close()
         else:
@@ -65,7 +62,7 @@ class ArduinoController():
                 if count > 1e5:
                     raise RuntimeError
 
-    def closePort(self):
+    def close_port(self):
         if self.ser:
             self.ser.close()
 

@@ -5,6 +5,7 @@ import numpy as np
 
 from ws_generator.msg import WSArray
 
+import rospkg
 import wx
 import main
 
@@ -48,6 +49,7 @@ class DemoPanel(wx.Panel):
         wx.Panel.__init__(self, parent)
         self.parent = parent
         self.ball = [[],[],[]]
+        self.rospack = rospkg.RosPack()
         self.last_pos = self.ScreenToClient(wx.GetMousePosition())
         self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
         self.SetBackgroundColour("BLACK")
@@ -160,13 +162,13 @@ class DemoPanel(wx.Panel):
         # dc.SetBackground(brush)
         # dc.Clear()
 
-        path = os.path.join('~/catkin_ws/src/hue/hybrid_act/ws_generator/ref', 'haptics_symp.png')
-        #path = self.rospack.get_path('ws_generator')
-        #path = os.path.join(path, 'ref/haptics_symp.png')
-        # picture = wx.Bitmap(path)
-        #width,height = picture.GetSize()
+        #path = os.path.join('~/catkin_ws/src/hue/hybrid_act/ws_generator/ref', 'haptics_symp.png')
+        path = self.rospack.get_path('ws_generator')
+        path = os.path.join(path, 'ref/haptics_symp.png')
+        picture = wx.Bitmap(path)
+        width,height = picture.GetSize()
 
-        #dc.DrawBitmap(picture,(self.WIDTH-width)/2,(self.HEIGHT-height)/2,True)
+        dc.DrawBitmap(picture,(self.WIDTH-width)/2,(self.HEIGHT-height)/2,True)
         dc.SetFont(wx.Font(self.TEXTBOX_FONTSIZE, wx.ROMAN, wx.FONTSTYLE_NORMAL, wx.NORMAL))
 
         """EV Rectangle"""

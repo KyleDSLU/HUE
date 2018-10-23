@@ -7,7 +7,7 @@ import random
 import time
 
 from ws_generator.msg import WSArray
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 
 #Other GUI utilites
 import main
@@ -20,7 +20,13 @@ class Frame(start_utils.GuiFrame):
         """"""
         self.ws_ufm_pub = rospy.Publisher('/cursor_position/workspace/ufm', WSArray, queue_size = 0)
         self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
+        self.force_status_pub = rospy.Publisher('/cursor_position/workspace/force_status', Bool, queue_size = 0)
+        self.force_sub = rospy.Publisher('/cursor_position/force/force_list', IntArray, self.force_callback, queue_size = 0)
+        self.x_sub = rospy.Publisher('/cursor_position/force/x_position', IntArray, self.x_callback, queue_size = 0)
         rospy.init_node('start_ws')
+
+        self.force_list = []
+        self.x_list = []
 
         self.REFRESH_RATE = 20
         self.SCREEN_LENGTH = 15
@@ -61,14 +67,19 @@ class Frame(start_utils.GuiFrame):
         self.Centre()
         self.Show()
 
+    def force_callback(self,force):
+        self.force_list.extend(force.data)
+
+    def x_callback(self,x):
+        self.x_list.extend(x.data)
+
     def option(self,event,selected):
         #print a message to confirm if the user is happy with the option selected
         string = ''.join(["You have selected ",str(selected), "). Continue?"])
         message = wx.MessageDialog(self,string,"Confirmation",wx.YES_NO)
         result = message.ShowModal()
         # If User agrees with selection, save relevant user data to csvfile
-        if result == wx.ID_YES:
-            #OVERWRITE CORRECT GUESS
+        if result == wx.ID_YES: #OVERWRITE CORRECT GUESS
             if self.ws_output[0][1] > 0.85:
                 self.CORRECT = False
                 self.THRESHOLD_FLIPS += 1
@@ -135,10 +146,14 @@ class Frame(start_utils.GuiFrame):
             l = [self.CORRECT, self.elapsed_time]
             l.extend(self.ws_output[0])
             l.extend(self.ws_output[1])
+            l.extend(self.force_list)
+            l.extend(self.x_list)
             l = [str(i) for i in l]
             s = ','.join(l) + '\n'
             fout.write(s)
             fout.close()
+        self.force_list = []
+        self.x_list = []
 
     def publish_intensity(self,intensity,y_ws):
         ufm_msg = WSArray()
@@ -155,6 +170,11 @@ class Frame(start_utils.GuiFrame):
 
         self.ws_ufm_pub.publish(ufm_msg)
         self.ws_ev_pub.publish(ev_msg)
+
+    def publish_force_status(self, status):
+        b = Bool()
+        b.data = True
+        self.force_status_pub.Publish(b)
 
     def hybridization_set(self):
         # construct conditions in the form of, test#: test_id, test_actuation, control_actuation, texture, freq

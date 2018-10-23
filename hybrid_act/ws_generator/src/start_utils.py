@@ -38,6 +38,7 @@ class Ball(object):
 class GuiPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):
         wx.Panel.__init__(self, parent)
+        self.parent
         self.ball = [[],[]]
         self.last_pos = self.ScreenToClient(wx.GetMousePosition())
         self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
@@ -92,7 +93,7 @@ class GuiPanel(wx.Panel):
         self.Refresh(True)
 
     #go back
-    def BackButton(self,event):
+    def back_button(self,event):
         f = main.frameMain(None)
         self.Close()
         f.Show()
@@ -108,6 +109,7 @@ class GuiPanel(wx.Panel):
                 if ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS:
                     self.wait_count[i] = 0
                     ball.move_forward(dc,self.BALL_MOVEX)
+                    parent.publish_force_status(True)
                     break
             elif ball.x != self.BALL_START[i][0]:
                 if self.wait_count[i] < self.WAIT:
@@ -117,8 +119,10 @@ class GuiPanel(wx.Panel):
                 else:
                     self.wait_count[i] = 0
                     ball.move_ball(dc,self.BALL_START[i])
+                    parent.publish_force_status(False)
             else:
                 ball.move_ball(dc,self.BALL_START[i])
+                parent.publish_force_status(False)
 
     def generate_ws(self,parent):
         intensity = np.zeros([4,self.HAPTIC_WIDTH])
@@ -196,7 +200,7 @@ class GuiPanel(wx.Panel):
         button_2.SetFont(wx.Font(self.TEXTBOX_FONTSIZE,wx.ROMAN,wx.NORMAL,wx.BOLD))
 
         ##connect buttons to functions
-        back_button.Bind(wx.EVT_BUTTON,self.BackButton)
+        back_button.Bind(wx.EVT_BUTTON,self.back_button)
         #add arguments when connecting buttons to functions using lambda
         button_1.Bind(wx.EVT_BUTTON,lambda evt: self.option(evt,1))
         button_2.Bind(wx.EVT_BUTTON,lambda evt: self.option(evt,2))

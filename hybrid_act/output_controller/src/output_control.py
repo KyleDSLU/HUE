@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
 import rospy
-import time
 from std_msgs.msg import Int8
+from output_controller import IntArray
 from MAX518 import MAX518_Controller
+from Arduino import ArduinoController
 
-class Output_Controller(MAX518_Controller):
+class Output_Controller(ArduinoController,MAX518_Controller):
 
     def __init__(self):
         rospy.init_node('output_control')
@@ -17,8 +18,7 @@ class Output_Controller(MAX518_Controller):
         scale = rospy.get_param('~scale')
 
         MAX518_Controller.__init__(self,i2c_address)
-        ArduinoController.__init__(self,port='/dev/ttyACM0',baudrate = 57600)
-        time.sleep(1)
+        ArduinoController.__init__(self,port='/dev/ttyARDUINO',baudrate = 57600)
 
         self._A0max = 4.1*scale
         self._A1max = 1.05*scale
@@ -31,19 +31,19 @@ class Output_Controller(MAX518_Controller):
 
     def int_callback(self, intensity):
         intensity = intensity.data
-        
         if self._i2cbus:
             self.DAC_output(self._A0max*intensity/100., self._A1max*intensity/100.)
+
 
     def freq_callback(self, frequency):
         frequency = frequency.data
         if self.ser:
             self.send_receive(self.arduino_case,frequency,'>H')
-            
+
     def close(self):
         self.MAX518_close()
-        self.closePort()
+        self.close_port()
 
 if __name__ == '__main__':
     controller = Output_Controller()
-    
+

@@ -1,2 +1,2 @@
 Header header
-uint32[] data
+uint16[] data
