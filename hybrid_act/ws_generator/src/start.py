@@ -11,7 +11,7 @@ from std_msgs.msg import String, Bool
 
 #Other GUI utilites
 import main
-import start_utils
+import utils.start_utils as start_utils
 
 
 class Frame(start_utils.GuiFrame):
@@ -226,6 +226,11 @@ class Frame(start_utils.GuiFrame):
                 self.CORRECT = False
 
             self.REP_INCORRECT +=1
+
+    def close(self):
+        f = main.frameMain(None)
+        self.Close()
+        f.show()
 
 # Run the program
 if __name__ == "__main__":

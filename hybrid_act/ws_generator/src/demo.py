@@ -7,7 +7,7 @@ from std_msgs.msg import String, Bool
 
 #Other GUI utilites
 import main
-import demo_utils
+import utils.demo_utils as demo_utils
 
 
 class Frame(demo_utils.DemoFrame):
@@ -33,6 +33,11 @@ class Frame(demo_utils.DemoFrame):
         # Generate Gui
         self.Centre()
         self.Show()
+
+    def close(self):
+        self.Close()
+        f = main.frameMain(None)
+        f.show()
 
 # Run the program
 if __name__ == "__main__":

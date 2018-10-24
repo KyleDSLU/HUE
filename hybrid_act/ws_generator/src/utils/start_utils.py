@@ -4,7 +4,6 @@ import time
 import numpy as np
 
 import wx
-import main
 
 class Ball(object):
     def __init__(self, l_xy, radius, x_lim, color="RED"):
@@ -38,7 +37,7 @@ class Ball(object):
 class GuiPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):
         wx.Panel.__init__(self, parent)
-        self.parent
+        self.parent = parent
         self.ball = [[],[]]
         self.last_pos = self.ScreenToClient(wx.GetMousePosition())
         self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
@@ -94,9 +93,8 @@ class GuiPanel(wx.Panel):
 
     #go back
     def back_button(self,event):
-        f = main.frameMain(None)
         self.Close()
-        f.Show()
+        self.parent.close()
 
     def on_paint(self, event):
         x, y = self.ScreenToClient(wx.GetMousePosition())
