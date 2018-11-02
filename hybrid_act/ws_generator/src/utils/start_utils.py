@@ -121,7 +121,7 @@ class GuiPanel(wx.Panel):
                 ball.move_ball(dc,self.BALL_START[i])
                 parent.publish_force_status(False,False)
 
-    def generate_ws(self,parent):
+    def generate_ws(self):
         intensity = np.zeros([4,self.HAPTIC_WIDTH])
         """Determine y workspace bounds"""
         y_ws = np.zeros([2,2])

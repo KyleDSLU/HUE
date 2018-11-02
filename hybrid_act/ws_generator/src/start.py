@@ -23,7 +23,7 @@ class Frame(start_utils.GuiFrame):
         self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
         self.master_force_pub = rospy.Publisher('/hue_master/force', Bool, queue_size = 0)
         self.master_actuation_pub = rospy.Publisher('/hue_master/actuation', Bool, queue_size = 0)
-        self.force_sub = rospy.Publisher('/cursor_position/force/force_list', ForceArray, self.force_callback, queue_size = 0)
+        self.force_sub = rospy.Subscriber('/cursor_position/force/force_list', ForceArray, self.force_callback, queue_size = 0)
 
         self.REFRESH_RATE = 20
         self.SCREEN_LENGTH = 15
@@ -33,7 +33,7 @@ class Frame(start_utils.GuiFrame):
         self.CSVFILE = csvfile
 
         # variables for the amount of times each testing condition is finished
-        self.HYBRID_COUNT = 0
+        self.AMPLITUDE_COUNT = 0
         self.TRESHOLD_COUNT = 0
         self.TEXTURE_COUNT = 0
 
@@ -64,11 +64,6 @@ class Frame(start_utils.GuiFrame):
         self.Centre()
         self.Show()
 
-    def force_callback(self,force_array):
-        self.tanforce_publish = [force_array.tanforce_1,force_array.tanforce_2]
-        self.normforce_publish = [force_array.normforce_1,force_array.normforce_2]
-        self.int_list = [force_array.intensity_1,force_array.intensity_2]
-
     def option(self,event,selected):
         #print a message to confirm if the user is happy with the option selected
         string = ''.join(["You have selected ",str(selected), "). Continue?"])
@@ -90,10 +85,10 @@ class Frame(start_utils.GuiFrame):
 
     def determine_next_test(self):
         # start hybridization test
-        if self.HYBRID_COUNT < self.REPEAT_TESTS:
+        if self.AMPLITUDE_COUNT < self.REPEAT_TESTS:
             self.hybridization_set()
             self.tc = self.test_conditions[0]
-            self.HYBRID_COUNT += 1
+            self.AMPLITUDE_COUNT += 1
 
         else:
             f = main.frameMain(None)
@@ -104,10 +99,10 @@ class Frame(start_utils.GuiFrame):
         if self.THRESHOLD_FLIPS < self.SIG_THRESHOLDS or self.FINISH_FLAG:
             if not self.ws_output:
                 # Construct output in the form of, channel: actuation, amplitude, texture, frequency
-                if self.tc[0] == 1:
+                if self.tc[0] == 'AMPLITUDE_TEST':
                     self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
                                       1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
-                elif self.tc[0] == 2:
+                elif self.tc[0] == 'FREQUENCY_TEST':
                     self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
                                       1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
 
@@ -142,19 +137,6 @@ class Frame(start_utils.GuiFrame):
                 self.TEST_CASE = 0
                 self.determine_next_test()
 
-    def save_data(self):
-        with open(self.CSVFILE, 'a') as fout:
-            l = [self.CORRECT, self.elapsed_time]
-            l.extend(self.ws_output[0])
-            l.extend(self.ws_output[1])
-            l.extend(self.tanforce_publish[0])
-            l.extend(self.tanforce_publish[1])
-            l.extend(self.x_list)
-            l = [str(i) for i in l]
-            s = ','.join(l) + '\n'
-            fout.write(s)
-            fout.close()
-
     def publish_intensity(self,intensity,y_ws):
         ufm_msg = WSArray()
         ufm_msg.header.stamp = rospy.Time(0.0)
@@ -174,23 +156,28 @@ class Frame(start_utils.GuiFrame):
     def publish_master_status(self, force_status, actuation_status):
         b = Bool()
         b.data = force_status
-        self.master_force_pub.Publish(b)
-        b = Bool()
+        self.master_force_pub.publish(b)
         b.data = actuation_status
-        self.master_actuation_pub.Publish(b)
+        self.master_actuation_pub.publish(b)
+        
+    def force_callback(self,force_array):
+        self.tanforce_publish = [force_array.tanforce_1,force_array.tanforce_2]
+        self.normforce_publish = [force_array.normforce_1,force_array.normforce_2]
+        self.int_list = [force_array.intensity_1,force_array.intensity_2]
 
-    def hybridization_set(self):
-        # construct conditions in the form of, test#: test_id, test_actuation, control_actuation, texture, freq
-        self.test_conditions = {0:[1,"Hybrid","EV","Sinusoid",5], \
-                                1:[1,"Hybrid","UFM","Sinusoid",5], \
-                                2:[1,"UFM","Hybrid","Sinusoid",5], \
-                                3:[1,"EV","Hybrid","Sinusoid",5]}
 
     def amplitude_set(self):
-        self.test_conditions = {0:[2,"Hybrid","Hybrid","Sinusoid",5], \
-                                1:[2,"Hybrid","Hybrid","Sinusoid",5], \
-                                2:[2,"UFM","Hybrid","Sinusoid",5], \
-                                3:[2,"EV","Hybrid","Sinusoid",5]}
+        # construct conditions in the form of, test#: test_id, test_actuation, control_actuation, texture, freq
+        self.test_conditions = {0:['AMPLITUDE_TEST',"Hybrid","EV","Sinusoid",5], \
+                                1:['AMPLITUDE_TEST',"Hybrid","UFM","Sinusoid",5], \
+                                2:['AMPLITUDE_TEST',"UFM","Hybrid","Sinusoid",5], \
+                                3:['AMPLITUDE_TEST',"EV","Hybrid","Sinusoid",5]}
+
+    def frequency_set(self):
+        self.test_conditions = {0:['FREQUENCY_TEST',"Hybrid","Hybrid","Sinusoid",5], \
+                                1:['FREQUENCY_TEST',"Hybrid","Hybrid","Sinusoid",5], \
+                                2:['FREQUENCY_TEST',"UFM","Hybrid","Sinusoid",5], \
+                                3:['FREQUENCY_TEST',"EV","Hybrid","Sinusoid",5]}
 
     def randomize_output(self):
         # randomize channel 0 and 1
@@ -210,7 +197,7 @@ class Frame(start_utils.GuiFrame):
         if selected == self.correct_selection:
             if not self.CORRECT:
                 self.CORRECT = True
-            if self.ws_output[0][1] >= self.MAX_AMPLITUDE:
+            if self.ws_output[0][1] >= self.AMPLITUDE_MAX:
                 self.FINISH_FLAG = True
 
             self.REP_INCORRECT = 0
@@ -219,7 +206,20 @@ class Frame(start_utils.GuiFrame):
                 self.THRESHOLD_FLIPS += 1
                 self.CORRECT = False
 
-            self.REP_INCORRECT +=1
+            self.REP_INCORRECT += 1
+
+    def save_data(self):
+        with open(self.CSVFILE, 'a') as fout:
+            l = [self.CORRECT, self.elapsed_time]
+            l.extend(self.ws_output[0])
+            l.extend(self.ws_output[1])
+            l.extend(self.tanforce_publish[0])
+            l.extend(self.tanforce_publish[1])
+            l.extend(self.x_list)
+            l = [str(i) for i in l]
+            s = ','.join(l) + '\n'
+            fout.write(s)
+            fout.close()
 
     def close(self):
         f = main.frameMain(None)

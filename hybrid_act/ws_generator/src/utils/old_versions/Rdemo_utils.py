@@ -12,6 +12,16 @@ import main
 
 
 
+def saveSnapshot(dcSource):
+    size = dcSource.Size       
+    bmp = wx.EmptyBitmap(size.width, size.height)        
+    memDC = wx.MemoryDC()
+    memDC.SelectObject(bmp)
+    memDC.Blit(0 ,0,size.width, size.height, dcSource, 0,0)
+    img = bmp.ConvertToImage()
+    img.SaveFile('saved.png', wx.BITMAP_TYPE_PNG)
+#to do: make a check fucntion to only execute this if there is no background saved as saved.png in directory.
+
 
 class Ball(object):
     def __init__(self, l_xy, radius, x_lim, color="RED"):
@@ -66,22 +76,25 @@ class DemoPanel(wx.Panel):
         self.LENGTH = length
         self.BALL_VELOCITY = velocity
         
+
+        #------------------------------------------------------------------
         #self.imageCtrl = wx.StaticBitmap(self.Panel, wx,ID_ANY, wx,EmptyBitmap(517, 524))
-        #path = self.rospack.get_path('ws_generator')
-        #path = os.path.join(path, 'src/utils/saved.png')
-        #image_file = 'saved.png'
-        #bmp1 = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
-        #self.bitmap1 = wx.StaticBitmap(self, -1, bmp1, (0, 0))
-        #self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_eraseBackground)
+        path = self.rospack.get_path('ws_generator')
+        path = os.path.join(path, 'src/utils/saved.png')
+        image_file = 'saved.png'
+        bmp1 = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
+        self.bitmap1 = wx.StaticBitmap(self, -1, bmp1, (0, 0))
+        self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_eraseBackground)
+        #--------------------------------------------------------------------
 
         #self.SetTransparent(100) 
-        #str1 = "%s %dx%d" % (image_file, bmp1.GetWidth(), bmp1.GetHeight())
+        str1 = "%s %dx%d" % (image_file, bmp1.GetWidth(), bmp1.GetHeight())
         
-        #dc = wx.ClientDC(self)
-        #rect = self.GetUpdateRegion().GetBox()
-        #dc.SetClippingRect(rect)
-        #dc.Clear()
-        #dc.DrawBitmap(bmp1, 0, 0)
+        dc = wx.ClientDC(self)
+        rect = self.GetUpdateRegion().GetBox()
+        dc.SetClippingRect(rect)
+        dc.Clear()
+        dc.DrawBitmap(bmp1, 0, 0)
         
 
         self.WAIT = 10
@@ -101,16 +114,6 @@ class DemoPanel(wx.Panel):
             dc.SetClippingRect(rect)
         dc.Clear()
         dc.DrawBitmap(bmp1, 0, 0)
-
-    def saveSnapshot(dcSource):
-        size = dcSource.Size       
-        bmp = wx.EmptyBitmap(size.width, size.height)        
-        memDC = wx.MemoryDC()
-        memDC.SelectObject(bmp)
-        memDC.Blit(0 ,0,size.width, size.height, dcSource, 0,0)
-        img = bmp.ConvertToImage()
-        img.SaveFile('saved.png', wx.BITMAP_TYPE_PNG)
-    #to do: make a check fucntion to only execute this if there is no background saved as saved.png in directory.
 
 
 
@@ -144,15 +147,15 @@ class DemoPanel(wx.Panel):
         third_ball_start = int(second_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
         self.BALL_START = [[self.BALL_LEFTMARGIN,first_ball_start],[self.BALL_LEFTMARGIN,second_ball_start],[self.BALL_LEFTMARGIN,third_ball_start]]
         
-       # image_file = 'saved.png'
-       # bmp1 = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
-        #self.bitmap1 = wx.StaticBitmap(self, -1, bmp1, (0, 0))
+        image_file = 'saved.png'
+        bmp1 = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
+        self.bitmap1 = wx.StaticBitmap(self, -1, bmp1, (0, 0))
         
-        #dc = wx.ClientDC(self)
-        #rect = self.GetUpdateRegion().GetBox()
-        #dc.SetClippingRect(rect)
-        #dc.Clear()
-        #dc.DrawBitmap(bmp1, 0, 0)
+        dc = wx.ClientDC(self)
+        rect = self.GetUpdateRegion().GetBox()
+        dc.SetClippingRect(rect)
+        dc.Clear()
+        dc.DrawBitmap(bmp1, 0, 0)
 
         #self.SetTransparent(100) 
         
@@ -179,25 +182,28 @@ class DemoPanel(wx.Panel):
         dc = wx.AutoBufferedPaintDC(self)
         dc.Clear()
         
-        #image_file = 'saved.png'
-        #bmp1 = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
-        #self.bitmap1 = wx.StaticBitmap(self, -1, bmp1, (0, 0))
+        try:
+            image_file = 'saved.png'
+            bmp1 = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
+            self.bitmap1 = wx.StaticBitmap(self, -1, bmp1, (0, 0))
         
-        #dc = wx.ClientDC(self)
-        #rect = self.GetUpdateRegion().GetBox()
-        #dc.SetClippingRect(rect)
-        #dc.Clear()
-        #dc.DrawBitmap(bmp1, 0, 0)
-        #img = wx.Image("saved.png", wx.BITMAP_TYPE_ANY)
-        #bit = wx.EmptyBitmap(517,524)
-        #imgBit = wx.BitmapFromImage(img)
-        #dc = wx.MemoryDC(imgBit)
-        #dc.SetPen(wx.Pen(wx.RED, 1))
-        #dc.SelectObject(wx.NullBitmap)
-        #self.SetBitmap(imgBit)
-        #imgBit.SaveFile("bit.bmp", wx.BITMAP_TYPE_BMP)
-        self._background(event,dc)
-        #commented out to attempt just relying on bitmap
+            dc = wx.ClientDC(self)
+            rect = self.GetUpdateRegion().GetBox()
+            dc.SetClippingRect(rect)
+            dc.Clear()
+            dc.DrawBitmap(bmp1, 0, 0)
+        except:
+        
+           # img = wx.Image("saved.png", wx.BITMAP_TYPE_ANY)
+           # bit = wx.EmptyBitmap(517,524)
+           # imgBit = wx.BitmapFromImage(img)
+           # dc = wx.MemoryDC(imgBit)
+           # dc.SetPen(wx.Pen(wx.RED, 1))
+           # dc.SelectObject(wx.NullBitmap)
+           # self.SetBitmap(imgBit)
+           # imgBit.SaveFile("bit.bmp", wx.BITMAP_TYPE_BMP)
+            self._background(event,dc)
+           # commented out to attempt just relying on bitmap
 
         for i,ball in enumerate(self.ball):
             if ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS:
@@ -289,7 +295,7 @@ class DemoPanel(wx.Panel):
             textbox = wx.Rect(self.TEXTBOX_X, rectangle_y+self.TEXTBOX_Y)
             dc.DrawLabel("Hybrid", textbox, alignment=1)
             
-            saveSnapshot(dc);#see fnction comment
+            #saveSnapshot(dc);#see fnction comment
 
     def _layout(self):#set up buttons and texts
         Frequency_label=wx.StaticText(self,wx.ID_ANY,pos=(0.7*self.WIDTH,0.02*self.HEIGHT),label='Frequency (Hz)')
