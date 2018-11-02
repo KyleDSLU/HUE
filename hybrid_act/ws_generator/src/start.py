@@ -6,7 +6,7 @@ import rospy
 import random
 import time
 
-from ws_generator.msg import WSArray
+from ws_generator.msg import ForceArray, WSArray
 from std_msgs.msg import String, Bool
 
 #Other GUI utilites
@@ -23,11 +23,7 @@ class Frame(start_utils.GuiFrame):
         self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
         self.master_force_pub = rospy.Publisher('/hue_master/force', Bool, queue_size = 0)
         self.master_actuation_pub = rospy.Publisher('/hue_master/actuation', Bool, queue_size = 0)
-        self.force_sub = rospy.Publisher('/cursor_position/force/force_list', IntArray, self.force_callback, queue_size = 0)
-        self.x_sub = rospy.Publisher('/cursor_position/force/x_position', IntArray, self.x_callback, queue_size = 0)
-
-        self.force_list = []
-        self.x_list = []
+        self.force_sub = rospy.Publisher('/cursor_position/force/force_list', ForceArray, self.force_callback, queue_size = 0)
 
         self.REFRESH_RATE = 20
         self.SCREEN_LENGTH = 15
@@ -68,11 +64,10 @@ class Frame(start_utils.GuiFrame):
         self.Centre()
         self.Show()
 
-    def force_callback(self,force):
-        self.force_list.extend(force.data)
-
-    def x_callback(self,x):
-        self.x_list.extend(x.data)
+    def force_callback(self,force_array):
+        self.tanforce_publish = [force_array.tanforce_1,force_array.tanforce_2]
+        self.normforce_publish = [force_array.normforce_1,force_array.normforce_2]
+        self.int_list = [force_array.intensity_1,force_array.intensity_2]
 
     def option(self,event,selected):
         #print a message to confirm if the user is happy with the option selected
@@ -152,14 +147,13 @@ class Frame(start_utils.GuiFrame):
             l = [self.CORRECT, self.elapsed_time]
             l.extend(self.ws_output[0])
             l.extend(self.ws_output[1])
-            l.extend(self.force_list)
+            l.extend(self.tanforce_publish[0])
+            l.extend(self.tanforce_publish[1])
             l.extend(self.x_list)
             l = [str(i) for i in l]
             s = ','.join(l) + '\n'
             fout.write(s)
             fout.close()
-        self.force_list = []
-        self.x_list = []
 
     def publish_intensity(self,intensity,y_ws):
         ufm_msg = WSArray()

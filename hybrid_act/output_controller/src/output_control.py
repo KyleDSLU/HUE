@@ -24,7 +24,7 @@ class Output_Controller(ArduinoController,MAX518_Controller):
             scale = 0.9
 
         MAX518_Controller.__init__(self,i2c_address)
-        ArduinoController.__init__(self,port='/dev/ttyARDUINO',baudrate = 57600)
+        ArduinoController.__init__(self,port='/dev/ttyAMA0',baudrate = 57600)
 
         self._A0max = 4.1*scale
         self._A1max = 1.05*scale
