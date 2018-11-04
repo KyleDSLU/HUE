@@ -171,9 +171,9 @@ class DemoPanel(wx.Panel):
         x, y = self.ScreenToClient(wx.GetMousePosition())
          
         path = self.rospack.get_path('ws_generator')
-        path = os.path.join(path, 'utils/ref/')
+        path = os.path.join(path, 'src/utils/ref/')
          
-        dc = wx.AutoBufferedPaintDC(self.bitmap1)
+        dc = wx.AutoBufferedPaintDC(self)
         if(self.BITMAP_FLAG == 0): 
              
             dc.Clear()
@@ -199,7 +199,7 @@ class DemoPanel(wx.Panel):
             
 
            # dc.DrawBitmap(self.bmp1,0,0)
-            temp_dc.BeginDrawing() 
+           # temp_dc.BeginDrawing() 
          
             temp_dc.SetPen(wx.Pen("blue"))
             temp_dc.SetBrush(wx.Brush("blue"))
@@ -221,14 +221,14 @@ class DemoPanel(wx.Panel):
                 else:
                     ball.move_ball(temp_dc,self.BALL_START[i])
 
-            temp_dc.EndDrawing()
-           
-            self.bitmap1 = wx.StaticBitmap(self, -1, temp_dc)
-           #temp_dc.Blit(0,0, self.WIDTH, self.HEIGHT, dc , 0,0)
-            temp_dc.SelectObject(wx.NullBitmap) 
+           #jj temp_dc.EndDrawing()
              
-            #dc.SelectObject(wx.NullBitmap) 
-            
+            #temp_dc = wx.StaticBitmap(self, -1, temp_dc)
+            dc.Blit(self.WIDTH,self.HEIGHT, self.WIDTH, self.HEIGHT, temp_dc , 0,0)
+            #jtemp_dc.SelectObject(wx.NullBitmap) 
+            temp_dc.SelectObject(wx.NullBitmap) 
+            self.bitmap1 = wx.StaticBitmap(self, -1, self.bmp1, (0,0))
+
     def import_bitmap(self, path):
          
         img  = path + 'demo_'+str(self.WIDTH)+'_'+str(self.HEIGHT)+'.png'
