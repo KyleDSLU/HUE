@@ -4,7 +4,7 @@ import time
 import numpy as np
 
 from ws_generator.msg import WSArray
-import time
+
 import rospkg
 import wx
 import main
@@ -16,6 +16,11 @@ class Ball(object):
         self.radius = radius
         self.color = color
         self.update_limit(x_lim)
+
+    def move_forward(self, dc, velocity):
+        if self.x < self.x_lim:
+            self.x += velocity;
+        self.draw(dc)
 
     def draw(self, dc):
         dc.SetPen(wx.Pen(self.color,style=wx.TRANSPARENT))
@@ -30,6 +35,9 @@ class Ball(object):
         self.y = l_xy[1]
         self.draw(dc)
 
+    def hold_ball(self, dc):
+        self.draw(dc)
+
 class OptionList:
     def __init__(self, id, shape):
         """Constructor"""
@@ -39,16 +47,14 @@ class OptionList:
 class DemoPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):
         wx.Panel.__init__(self, parent)
-        self.overlay = wx.Overlay()
         self.parent = parent
-
-        self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
-        self.SetBackgroundColour("BLACK") 
-
         self.ball = [[],[],[]]
         self.rospack = rospkg.RosPack()
         self.last_pos = self.ScreenToClient(wx.GetMousePosition())
         
+        self.bitmap1 = wx.EmptyBitmap(0,0)
+        self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
+        self.SetBackgroundColour("BLACK") 
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.REFRESH = refresh
@@ -56,14 +62,25 @@ class DemoPanel(wx.Panel):
         self.BALL_VELOCITY = velocity
         self.screenDC = wx.ScreenDC() 
         
-        self.BITMAP_FLAG = False
+        self.BITMAP_FLAG = 0; 
 
         self.WAIT = 10
         self.wait_count = [0]*len(self.ball)
 
-        self.on_size(0)
+        self.overlay = wx.Overlay() 
         self.update_drawing()
+        self.on_size(0)
         wx.CallLater(200, self.SetFocus)
+        
+    def on_eraseBackground(self, evt):
+        dc - evt.GetDC()
+
+        if not dc:
+            dc = wx.ClientDC(self)
+            rect = self.GetUpdateRegion().GetBox()
+            dc.SetClippingRect(rect)
+        dc.Clear()
+        dc.DrawBitmap(bmp1, 0, 0)
 
     def on_size(self, event):
         self.WIDTH, self.HEIGHT = self.GetClientSize()
@@ -98,94 +115,91 @@ class DemoPanel(wx.Panel):
             self.ball[i] = Ball(self.BALL_START[i],self.BALL_RADIUS,self.BALL_RIGHTMARGIN)
 
         self.BALL_MOVEX = int(self.BALL_VELOCITY*self.REFRESH*self.WIDTH/(2450.*self.LENGTH))
+        self.empty = wx.EmptyBitmap(self.WIDTH, self.HEIGHT)
+        self._layout()
+        self.update_drawing()
+        #print 'helllllo'
 
     def update_drawing(self):
-        #self.Refresh(False)
-        self.on_update()
+        self.Refresh(False)
          
     def on_paint(self, event):
-        if not self.BITMAP_FLAG: 
-            path = self.rospack.get_path('ws_generator')
-            path = os.path.join(path, 'src/utils/ref/')
-            dc = wx.PaintDC(self)
+        path = self.rospack.get_path('ws_generator')
+        path = os.path.join(path, 'src/utils/ref/')
+         
+        if(self.BITMAP_FLAG == 0): 
+            dc = wx.AutoBufferedPaintDC(self)
             dc.Clear()
             try:
+                print 'Saving bitmap'
                 self.import_bitmap(path)
-                print 'Importing bitmap'
                 self.BITMAP_FLAG = 1
 
             except:
                 print 'Couldn\'t find it, give me one second'
                 self.generate_png(dc,path)
-                time.sleep(0.01)
                 self.import_bitmap(path) 
                 self.BITMAP_FLAG = 1 
-
-            # Draw Bitmap and setup overlay
-            dc.DrawBitmap(self.bmp, 0, 0)
-            self.overlay = wx.Overlay()
-            self.odc = wx.DCOverlay(self.overlay, dc)
-            self.odc.Clear()
             del dc 
 
-            # Setup Buttons
-            # self._layout()
+        else:
+            #temp_dc = wx.MemoryDC()
+            #temp_bmp = self.bitmap1.GetBitmap()
 
-            # Draw Balls for first time
-            redraw_list = [True] * len(self.ball)
-            pos_list = self.BALL_START
-            self.draw_balls(redraw_list, pos_list)
-
-    def on_update(self):
-        x, y = self.ScreenToClient(wx.GetMousePosition())
-        redraw_list = [False] * len(self.ball)
-        pos_list = [None] * len(self.ball)
-        for i,ball in enumerate(self.ball):
-            if ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS:
-                if ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS:
-                    self.wait_count[i] = 0
-                    redraw_list[i] = True
-                    pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
-                    break
-            elif ball.x != self.BALL_START[i][0]:
-                if self.wait_count[i] < self.WAIT:
-                    self.wait_count[i] += 1
-                    break
+            dc = wx.ClientDC(self)
+            
+            temp_dc = wx.DCOverlay(wx.Overlay(), dc)
+            temp_dc.Clear() 
+            #temp_dc.SelectObject(temp_bmp)
+            x, y = self.ScreenToClient(wx.GetMousePosition())
+            temp_dc.Clear()
+            #temp_dc.DrawBitmap(self.bmp1,0,0)
+             
+            for i,ball in enumerate(self.ball):
+                if ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS:
+                    if ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS:
+                        self.wait_count[i] = 0
+                        ball.move_forward(dc,self.BALL_MOVEX)
+                        break
+                elif ball.x != self.BALL_START[i][0]:
+                    if self.wait_count[i] < self.WAIT:
+                        self.wait_count[i] += 1
+                        ball.hold_ball(dc)
+                        break
+                    else:
+                        self.wait_count[i] = 0
+                        ball.move_ball(dc,self.BALL_START[i])
                 else:
-                    self.wait_count[i] = 0
-                    redraw_list = [True] * len(self.ball)
-                    pos_list = self.BALL_START
-                
-        if any(redraw_list):
-            self.draw_balls(redraw_list, pos_list)
+                    ball.move_ball(dc,self.BALL_START[i])
 
-    def draw_balls(self, redraw_list, pos_list):
-        dc = wx.ClientDC(self)
-        self.odc.Clear()
-
-        for i,redraw in enumerate(redraw_list):
-            if redraw:
-                self.ball[i].move_ball(dc, pos_list[i])
+            #temp_dc.SelectObject(wx.NullBitmap) 
+            #self.bitmap1.SetBitmap(temp_bmp)
+            del temp_dc
 
     def import_bitmap(self, path):
         img  = path + 'demo_'+str(self.WIDTH)+'_'+str(self.HEIGHT)+'.png'
         try:
-            del self.bmp
-            del self.bitmap
+            del sel.bmp1
+            del self.bitmap1
         except:
             pass
-        self.bmp = wx.Image(img, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
-        self.BITMAP_FLAG = True
+         
+        self.bmp1 = wx.Image(img, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
+        self.temp1 = self.bmp1
+        self.bitmap1 = wx.StaticBitmap(self, -1, self.bmp1, (0,0))
 
     def generate_png(self, dc, path):
         if self.WIDTH > 20 and self.HEIGHT > 20:
             """set up the device for painting"""
             picture = wx.Bitmap(path + 'haptics_symp.png')
             width,height = picture.GetSize()
+            odc = wx.DCOverlay(self.overlay, dc) 
+            odc.Clear() 
             dc.BeginDrawing()
 
             dc.DrawBitmap(picture,(self.WIDTH-width)/2,(self.HEIGHT-height)/2,True)
             dc.SetFont(wx.Font(self.TEXTBOX_FONTSIZE, wx.ROMAN, wx.FONTSTYLE_NORMAL, wx.NORMAL))
+
             """EV Rectangle"""
             rectangle_y = self.FIRST_RECTANGLE_Y
             dc.SetPen(wx.Pen(self.RECTANGLE_COLOR))
@@ -221,16 +235,20 @@ class DemoPanel(wx.Panel):
             dc.DrawRectangle(0, rectangle_y, self.TEXTBOX_WIDTH, self.RECTANGLE_SIZE)
             textbox = wx.Rect(self.TEXTBOX_X, rectangle_y+self.TEXTBOX_Y)
             dc.DrawLabel("Hybrid", textbox, alignment=1)
-        
+                   
+            odc = wx.DCOverlay(self.overlay, dc) 
+            odc.Clear() 
+             
+            #bmp = wx.EmptyBitmap(self.WIDTH, self.HEIGHT)        
+            #memDC = wx.MemoryDC()
+            #memDC.SelectObject(bmp)
+            #memDC.Blit(0 ,0,self.WIDTH, self.HEIGHT, dc, 0,0)
+            #memDC.SelectObject(wx.NullBitmap) 
+            #img = bmp.ConvertToImage()
             
-            bmp = wx.EmptyBitmap(self.WIDTH, self.HEIGHT)        
-            memDC = wx.MemoryDC()
-            memDC.SelectObject(bmp)
-            memDC.Blit(0 ,0,self.WIDTH, self.HEIGHT, dc, 0,0)
-            memDC.SelectObject(wx.NullBitmap) 
-            img = bmp.ConvertToImage()
+            #img.SaveFile(path + 'demo_'+str(self.WIDTH)+'_'+str(self.HEIGHT)+'.png', wx.BITMAP_TYPE_PNG)
+             
             
-            img.SaveFile(path + 'demo_'+str(self.WIDTH)+'_'+str(self.HEIGHT)+'.png', wx.BITMAP_TYPE_PNG)
 
 
     def on_select(self, event):
@@ -259,9 +277,14 @@ class DemoPanel(wx.Panel):
         if not (self.textures.GetStringSelection()=='' or self.Amplitude_EV.GetStringSelection()=='' or self.Amplitude_UFM.GetStringSelection()=='' or self.Amplitude_H.GetStringSelection()=='' or self.Frequency.GetValue()==''):
             self.SubmitBtn.Enable()
 
+             
+            
     def _layout(self):#set up buttons and texts
+        
         if self.WIDTH > 20 and self.HEIGHT > 20:
-            Frequency_label=wx.StaticText(self.odc,wx.ID_ANY,pos=(0.7*self.WIDTH,0.02*self.HEIGHT),label='Frequency (Hz)')
+             
+            
+            Frequency_label=wx.StaticText(self,wx.ID_ANY,pos=(0.7*self.WIDTH,0.02*self.HEIGHT),label='Frequency (Hz)')
             self.Frequency= wx.TextCtrl(self, wx.ID_ANY, pos=(0.7*self.WIDTH,0.05*self.HEIGHT))
             self.Frequency.Bind(wx.EVT_TEXT, self.checking)
 
@@ -321,7 +344,150 @@ class DemoPanel(wx.Panel):
             #self.redraw_bitmap()
 
     def generate_workspace(self,texture,Amplitude_EV,Amplitude_UFM,Amplitude_H,frequency):
-        pass
+        """Determine y workspace bounds"""
+        y_ws_ufm = []
+        y_ws_ev = []
+
+        rectangle_y = self.FIRST_RECTANGLE_Y
+
+        y_ws_ev.append(rectangle_y)
+        y_ws_ev.append(rectangle_y+self.RECTANGLE_SIZE)
+
+        rectangle_y = rectangle_y + self.RECTANGLE_SIZE + self.RECTANGLE_SEPERATION
+        y_ws_ufm.append(rectangle_y)
+        y_ws_ufm.append(rectangle_y + self.RECTANGLE_SIZE)
+
+        rectangle_y = rectangle_y + self.RECTANGLE_SIZE + self.RECTANGLE_SEPERATION
+        y_ws_ev.append(rectangle_y)
+        y_ws_ev.append(rectangle_y + self.RECTANGLE_SIZE)
+        y_ws_ufm.append(rectangle_y)
+        y_ws_ufm.append(rectangle_y + self.RECTANGLE_SIZE)
+
+        haptic_width = float(self.HAPTIC_WIDTH)
+        horiz_pixels = np.arange(haptic_width)
+
+        """Determine x intensities correlating with texture"""
+        if texture == "Bump":
+            x_center = (haptic_width)/2
+            x_biasedcenter = x_center+self.TEXTBOX_WIDTH
+
+            x_haptic_switch = [x_biasedcenter-225,x_biasedcenter+225]
+            x_ufm_dropoff = [x_biasedcenter-400,x_biasedcenter+400]
+            x_ev_max = [x_biasedcenter-75,x_biasedcenter+75]
+
+            c1 = (x_haptic_switch[0]-x_biasedcenter)**2
+            c2 = (x_ufm_dropoff[0]-x_biasedcenter)**2
+            kufm = -c1/(c2-c1)
+            aufm = (1.0-kufm)/c2
+
+            c3 = (x_ev_max[0]-x_biasedcenter)**2
+            kev = -c1/(c3-c1)
+            aev = (1.0-kev)/c3
+
+            """Set haptic intensity = 0 over textbox"""
+            ufm_intensity = np.zeros(self.WIDTH)
+            ev_intensity = np.zeros(self.WIDTH)
+
+            for index in range(int(self.TEXTBOX_WIDTH),int(self.WIDTH)):
+                #print(x_ufm_dropoff, index)
+                if (index <= x_ufm_dropoff[0] or index >= x_ufm_dropoff[1]):
+                    ufm_intensity[index] = 1.0
+                    ev_intensity[index] = 0.0
+
+                else:
+                    ufm_int = aufm*(index-x_biasedcenter)**2+kufm
+                    ufm_intensity[index] = max(0,min(1,ufm_int))
+
+                    ev_int = aev*(index-x_biasedcenter)**2+kev
+                    ev_intensity[index] = max(0,min(1,ev_int))
+
+            hybridev_intensity = ev_intensity
+            hybridufm_intensity = ufm_intensity
+
+        elif texture == "Sinusoidal":
+            hybridufm_intensity = np.zeros(len(haptic_width))
+            hybridev_intensity = np.zeros(len(haptic_width))
+            sinusoid = np.sin(horiz_pixels/haptic_width*frequency*2*np.pi)
+            ind = [np.where(sinusoid>0)[0],np.where(sinusoid<=0)[0]]
+            hybridufm_intensity[ind[0]] = sinusoid[ind[0]]
+            hybridev_intensity[ind[1]] = -sinusoid[ind[1]]
+
+            positive_sin = sinusoid/2.+0.5
+            ufm_intensity = positive_sin
+            ev_intensity = positive_sin
+
+            """Set haptic intensity = 0 over textbox"""
+            hybridufm_intensity = np.append(zeros(self.TEXTBOX_WIDTH),hybridufm_intensity)
+            hybridev_intensity = np.append(zeros(self.TEXTBOX_WIDTH),hybridev_intensity)
+            ufm_intensity = np.append(zeros(self.TEXTBOX_WIDTH),ufm_intensity)
+            ev_intensity = np.append(zeros(self.TEXTBOX_WIDTH),ev_intensity)
+
+        elif texture == "Triangular":
+            hybridufm_intensity = np.zeros(len(haptic_width))
+            hybridev_intensity = np.zeros(len(haptic_width))
+            triangle = np.zeros(len(haptic_width))
+            slope = 2.0*frequency/haptic_width
+            triangle[0] = -1.0
+            for i in range(1,len(triangle)):
+                if triangle[i-1] >= 1.0:
+                    triangle[i] = -1.0
+                else:
+                    triangle[i] = min(1.0,triangle[i]+slope)
+            ind = [np.where(triangle>0)[0], np.where(triangle<=0)[0]]
+            hybridufm_intensity[ind[1]] = triangle[ind[1]]
+            hybridev_intensity[ind[0]] = triangle[ind[0]]
+
+            positive_triangle = triangle/2.+0.5
+            ufm_intensity = positive_triangle
+            ev_intensity = positive_triange
+
+            """Set haptic intensity = 0 over textbox"""
+            hybridufm_intensity = np.append(zeros(self.TEXTBOX_WIDTH),hybridufm_intensity)
+            hybridev_intensity = np.append(zeros(self.TEXTBOX_WIDTH),hybridev_intensity)
+            ufm_intensity = np.append(zeros(self.TEXTBOX_WIDTH),ufm_intensity)
+            ev_intensity = np.append(zeros(self.TEXTBOX_WIDTH),ev_intensity)
+
+        elif texture == "Square":
+            hybridufm_intensity = np.zeros(len(haptic_width))
+            hybridev_intensity = np.zeros(len(haptic_width))
+            sinusoid = np.sin(2*np.pi*frequency*horiz_pixels/haptic_width)
+            ind = [np.where(sinusoid>0)[0],np.where(sinusoid<=0)[0]]
+            square = np.zeros(len(sinusoid))
+            square[ind[0]] = 1
+            square[ind[1]] = -1
+            hybridufm_intensity[ind[1]] = -square[ind[1]]
+            hybridev_intensity[ind[0]] = square[ind[0]]
+            ufm_intensity = (1+square)/2
+            ev_intensity = (1+square)/2
+
+            """Set haptic intensity = 0 over textbox"""
+            hybridufm_intensity = np.append(zeros(self.textbox_width),hybridufm_intensity)
+            hybridev_intensity = np.append(zeros(self.textbox_width),hybridev_intensity)
+            ufm_intensity = np.append(zeros(self.textbox_width),ufm_intensity)
+            ev_intensity = np.append(zeros(self.textbox_width),ev_intensity)
+
+
+        ufm_intensity = np.append(ufm_amplitde*ufm_intensity,hybrid_amplitude*hybridufm_intensity)
+        ev_intensity = np.append(ev_amplitde*ev_intensity,hybrid_amplitude*hybridev_intensity)
+        intensity = np.append(ufm_intensity,ev_intensity)
+        y_ws = np.append(y_ws_ufm,y_ws_ev)
+
+        ev_msg = WSArray()
+        ev_msg.header.stamp = rospy.Time(0.0)
+        ev_msg.y_step = 2
+        ev_msg.y_ws = y_ws_ev
+        ev_msg.int_step = 2
+        ev_msg.intensity = ev_intensity.astype(int).tolist()
+
+        ufm_msg = WSArray()
+        ufm_msg.header.stamp = rospy.Time(0.0)
+        ufm_msg.y_step = 2
+        ufm_msg.y_ws = y_ws_ufm
+        ufm_msg.int_step = 2
+        ufm_msg.intensity = ufm_intensity.astype(int).tolist()
+
+        self.parent.ws_ufm_pub.publish(ufm_msg)
+        self.parent.ws_ev_pub.publish(ev_msg)
 
 class DemoFrame(wx.Frame):
     def __init__(self, velocity, refresh, length, *args, **kw):
@@ -343,7 +509,7 @@ class DemoFrame(wx.Frame):
 
 if __name__ == '__main__':
     app = wx.App(False)
-    frame = DemoFrame(velocity=5, refresh=10, length=19)
+    frame = DemoFrame(10, 20, 15)
     frame.Show(True)
     app.MainLoop()
 
