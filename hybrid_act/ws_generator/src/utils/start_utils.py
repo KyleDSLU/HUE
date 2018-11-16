@@ -5,34 +5,7 @@ import numpy as np
 
 import wx
 
-class Ball(object):
-    def __init__(self, l_xy, radius, x_lim, color="RED"):
-        self.x = l_xy[0]
-        self.y = l_xy[1]
-        self.radius = radius
-        self.color = color
-        self.update_limit(x_lim)
-
-    def move_forward(self, dc, velocity):
-        if self.x < self.x_lim:
-            self.x += velocity;
-        self.draw(dc)
-
-    def draw(self, dc):
-        dc.SetPen(wx.Pen(self.color,style=wx.TRANSPARENT))
-        dc.SetBrush(wx.Brush(self.color,wx.SOLID))
-        dc.DrawCircle(self.x+5, self.y+5, self.radius)
-
-    def update_limit(self, limit):
-        self.x_lim = limit
-
-    def move_ball(self, dc, l_xy):
-        self.x = l_xy[0]
-        self.y = l_xy[1]
-        self.draw(dc)
-
-    def hold_ball(self, dc):
-        self.draw(dc)
+from utils import Ball, WS_Generator
 
 class GuiPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):
@@ -67,7 +40,7 @@ class GuiPanel(wx.Panel):
         self.RECTANGLE_SEPERATION = int((self.HEIGHT-self.FIRST_RECTANGLE_Y-self.BOTTOM_SPACE-3*self.RECTANGLE_SIZE)/3.0)
 
         #set up textbox and lines
-        self.TEXTBOX_WIDTH = self.WIDTH
+        self.TEXTBOX_WIDTH = 0
         self.TEXTBOX_X = 0.04*self.WIDTH
         self.TEXTBOX_XOFFSET = 0.80*self.WIDTH
         self.TEXTBOX_Y = self.RECTANGLE_SIZE*0.35
@@ -85,8 +58,7 @@ class GuiPanel(wx.Panel):
             self.ball[i] = Ball(self.BALL_START[i],self.BALL_RADIUS,self.WIDTH-self.BALL_MARGIN)
 
         self.BALL_MOVEX = int(self.BALL_VELOCITY*self.REFRESH*self.WIDTH/(2450.*self.LENGTH))
-        self._layout()
-        self.update_drawing()
+        self.ws_gen = WS_Generator(self)
 
     def update_drawing(self):
         self.Refresh(True)
@@ -121,45 +93,8 @@ class GuiPanel(wx.Panel):
                 ball.move_ball(dc,self.BALL_START[i])
                 parent.publish_force_status(False,False)
 
-    def generate_ws(self):
-        intensity = np.zeros([4,self.HAPTIC_WIDTH])
-        """Determine y workspace bounds"""
-        y_ws = np.zeros([2,2])
-        rectangle_y = self.FIRST_RECTANGLE_Y
-        y_ws[0] = [rectangle_y,rectangle_y+self.RECTANGLE_SIZE]
-        rectangle_y = rectangle_y + self.RECTANGLE_SIZE + self.RECTANGLE_SEPERATION
-        y_ws[1] = [rectangle_y,rectangle_y + self.RECTANGLE_SIZE]
-
-        HAPTIC_WIDTH = float(self.HAPTIC_WIDTH)
-        HORIZ_PIXELS = np.arange(HAPTIC_WIDTH)
-
-        # output has form of channel: actuation, amplitude, texture, frequency
-        for i,value in enumerate(parent.rand_output.values()):
-            amp = int(value[1]*100)
-            if value[2] == "Sinusoid":
-                if value[0] == "Hybrid":
-                    sinusoid = amp*np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*value[3]*2*np.pi)
-                    ind = [np.where(sinusoid>0)[0], np.where(sinusoid<=0)[0]]
-                    intensity[2*i][ind[0]] = sinusoid[ind[0]]
-                    intensity[2*i+1][ind[1]] = -sinusoid[ind[1]]
-                elif value[0] == "UFM":
-                    intensity[2*i] = amp/2*np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*value[3]*2*np.pi) + amp/2
-                elif value[0] == "EV":
-                    intensity[2*i+1] = amp/2*np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*value[3]*2*np.pi) + amp/2
-
-            elif value[2]  == "Square":
-                sinusoid = np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*value[3]*2*np.pi)
-                ind = [np.where(sinusoid>0)[0], np.where(sinusoid<=0)[0]]
-
-                if value[0] == "Hybrid":
-                    intensity[2*i][ind[0]] = amp
-                    intensity[2*i+1][ind[1]] = amp
-                elif value[0] == "UFM":
-                    intensity[2*i][ind[0]] = amp
-                elif value[0] == "EV":
-                    intensity[2*i+1][ind[1]] = amp
-
-        return intensity.astype(int).tolist(), y_ws.astype(int).tolist(), time.time()
+    def generate_ws(self,ws):
+        return self.ws_gen.ws_generator(ws), time.time
 
     def _background(self, evt, dc):
         """set up the device for painting"""

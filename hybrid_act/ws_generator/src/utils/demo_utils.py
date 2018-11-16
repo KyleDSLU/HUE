@@ -9,26 +9,7 @@ import rospkg
 import wx
 import main
 
-class Ball(object):
-    def __init__(self, l_xy, radius, x_lim, color="RED"):
-        self.x = l_xy[0]
-        self.y = l_xy[1]
-        self.radius = radius
-        self.color = color
-        self.update_limit(x_lim)
-
-    def draw(self, dc):
-        dc.SetPen(wx.Pen(self.color,style=wx.TRANSPARENT))
-        dc.SetBrush(wx.Brush(self.color,wx.SOLID))
-        dc.DrawCircle(self.x+5, self.y+5, self.radius)
-        
-    def update_limit(self, limit):
-        self.x_lim = limit
-
-    def move_ball(self, dc, l_xy):
-        self.x = l_xy[0]
-        self.y = l_xy[1]
-        self.draw(dc)
+from utils import Ball, ws_generator
 
 class OptionList:
     def __init__(self, id, shape):
@@ -43,19 +24,19 @@ class DemoPanel(wx.Panel):
         self.parent = parent
 
         self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
-        self.SetBackgroundColour("BLACK") 
+        self.SetBackgroundColour("BLACK")
 
         self.ball = [[],[],[]]
         self.rospack = rospkg.RosPack()
         self.last_pos = self.ScreenToClient(wx.GetMousePosition())
-        
+
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.REFRESH = refresh
         self.LENGTH = length
         self.BALL_VELOCITY = velocity
-        self.screenDC = wx.ScreenDC() 
-        
+        self.screenDC = wx.ScreenDC()
+
         self.BITMAP_FLAG = False
 
         self.WAIT = 10
@@ -93,18 +74,18 @@ class DemoPanel(wx.Panel):
         second_ball_start = int(first_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
         third_ball_start = int(second_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
         self.BALL_START = [[self.BALL_LEFTMARGIN,first_ball_start],[self.BALL_LEFTMARGIN,second_ball_start],[self.BALL_LEFTMARGIN,third_ball_start]]
-        
+
         for i in range(len(self.ball)):
             self.ball[i] = Ball(self.BALL_START[i],self.BALL_RADIUS,self.BALL_RIGHTMARGIN)
 
         self.BALL_MOVEX = int(self.BALL_VELOCITY*self.REFRESH*self.WIDTH/(2450.*self.LENGTH))
+        self.ws_gen = WS_Generator(self)
 
     def update_drawing(self):
-        #self.Refresh(False)
         self.on_update()
-         
+
     def on_paint(self, event):
-        if not self.BITMAP_FLAG: 
+        if not self.BITMAP_FLAG:
             path = self.rospack.get_path('ws_generator')
             path = os.path.join(path, 'src/utils/ref/')
             dc = wx.PaintDC(self)
@@ -118,18 +99,15 @@ class DemoPanel(wx.Panel):
                 print 'Couldn\'t find it, give me one second'
                 self.generate_png(dc,path)
                 time.sleep(0.01)
-                self.import_bitmap(path) 
-                self.BITMAP_FLAG = 1 
+                self.import_bitmap(path)
+                self.BITMAP_FLAG = 1
 
             # Draw Bitmap and setup overlay
             dc.DrawBitmap(self.bmp, 0, 0)
             self.overlay = wx.Overlay()
             self.odc = wx.DCOverlay(self.overlay, dc)
             self.odc.Clear()
-            del dc 
-
-            # Setup Buttons
-            # self._layout()
+            del dc
 
             # Draw Balls for first time
             redraw_list = [True] * len(self.ball)
@@ -155,7 +133,6 @@ class DemoPanel(wx.Panel):
                     self.wait_count[i] = 0
                     redraw_list = [True] * len(self.ball)
                     pos_list = self.BALL_START
-                
         if any(redraw_list):
             self.draw_balls(redraw_list, pos_list)
 
@@ -221,15 +198,14 @@ class DemoPanel(wx.Panel):
             dc.DrawRectangle(0, rectangle_y, self.TEXTBOX_WIDTH, self.RECTANGLE_SIZE)
             textbox = wx.Rect(self.TEXTBOX_X, rectangle_y+self.TEXTBOX_Y)
             dc.DrawLabel("Hybrid", textbox, alignment=1)
-        
-            
-            bmp = wx.EmptyBitmap(self.WIDTH, self.HEIGHT)        
+
+            bmp = wx.EmptyBitmap(self.WIDTH, self.HEIGHT)
             memDC = wx.MemoryDC()
             memDC.SelectObject(bmp)
             memDC.Blit(0 ,0,self.WIDTH, self.HEIGHT, dc, 0,0)
-            memDC.SelectObject(wx.NullBitmap) 
+            memDC.SelectObject(wx.NullBitmap)
             img = bmp.ConvertToImage()
-            
+
             img.SaveFile(path + 'demo_'+str(self.WIDTH)+'_'+str(self.HEIGHT)+'.png', wx.BITMAP_TYPE_PNG)
 
 
@@ -258,6 +234,30 @@ class DemoPanel(wx.Panel):
     def checking(self, event):
         if not (self.textures.GetStringSelection()=='' or self.Amplitude_EV.GetStringSelection()=='' or self.Amplitude_UFM.GetStringSelection()=='' or self.Amplitude_H.GetStringSelection()=='' or self.Frequency.GetValue()==''):
             self.SubmitBtn.Enable()
+
+    def generate_workspace(self,texture,Amplitude_EV,Amplitude_UFM,Amplitude_H,frequency):
+        ws = {0: ["EV", Amplitude_EV, texture, frequency],
+              1: ["UFM", Amplitude_UFM, texture, frequency],
+              2: ["Hybrid", Amplitude_H, texture, frequency]}
+
+        intensity, y_ws = self.ws_gen.generate_ws(ws)
+
+        ufm_msg = WSArray()
+        ufm_msg.header.stamp = rospy.Time(0.0)
+        ufm_msg.y_step = len(y_ws)
+        ufm_msg.y_ws = y_ws[(0,2,4),:].flatten().tolist()
+        ufm_msg.int_step = len(intensity)
+        ufm_msg.intensity = intensity[(1,3,5),:].flatten().tolist()
+
+        ev_msg = WSArray()
+        ev_msg.header.stamp = rospy.Time(0.0)
+        ev_msg.y_step = len(y_ws)
+        ev_msg.y_ws = y_ws[(1,3,5),:].flatten().tolist()
+        ev_msg.int_step = len(intensity)
+        ev_msg.intensity = intensity[(1,3,5),:].flatten().tolist()
+
+        self.parent.ws_ufm_pub.publish(ufm_msg)
+        self.parent.ws_ev_pub.publish(ev_msg)
 
     def _layout(self):#set up buttons and texts
         if self.WIDTH > 20 and self.HEIGHT > 20:
@@ -318,10 +318,7 @@ class DemoPanel(wx.Panel):
             self.widgetMaker(self.Amplitude_H, amplitudes)
 
             self.SubmitBtn.Disable()
-            #self.redraw_bitmap()
 
-    def generate_workspace(self,texture,Amplitude_EV,Amplitude_UFM,Amplitude_H,frequency):
-        pass
 
 class DemoFrame(wx.Frame):
     def __init__(self, velocity, refresh, length, *args, **kw):
