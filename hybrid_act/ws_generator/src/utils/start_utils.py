@@ -5,7 +5,7 @@ import numpy as np
 
 import wx
 
-from utils import Ball, WS_Generator
+from utils import Ball, ws_generator
 
 class GuiPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):
@@ -13,9 +13,11 @@ class GuiPanel(wx.Panel):
         self.parent = parent
         self.ball = [[],[]]
         self.last_pos = self.ScreenToClient(wx.GetMousePosition())
-        self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
-        self.SetBackgroundColour("BLACK")
+        #self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
+        #self.SetBackgroundColour("BLACK")
 
+        self._background
+        self._layout
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.REFRESH = refresh
@@ -25,7 +27,6 @@ class GuiPanel(wx.Panel):
         self.WAIT = 10
         self.wait_count = [0]*len(self.ball)
 
-        self.update_drawing()
         self.on_size(0)
 
         wx.CallLater(200, self.SetFocus)
@@ -58,7 +59,7 @@ class GuiPanel(wx.Panel):
             self.ball[i] = Ball(self.BALL_START[i],self.BALL_RADIUS,self.WIDTH-self.BALL_MARGIN)
 
         self.BALL_MOVEX = int(self.BALL_VELOCITY*self.REFRESH*self.WIDTH/(2450.*self.LENGTH))
-        self.ws_gen = WS_Generator(self)
+        self.ws_gen = ws_generator(self) 
 
     def update_drawing(self):
         self.Refresh(True)
@@ -70,31 +71,9 @@ class GuiPanel(wx.Panel):
 
     def on_paint(self, event):
         x, y = self.ScreenToClient(wx.GetMousePosition())
-        dc = wx.AutoBufferedPaintDC(self)
-        dc.Clear()
-        self._background(event,dc)
-
-        for i,ball in enumerate(self.ball):
-            if ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS:
-                if ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS:
-                    self.wait_count[i] = 0
-                    ball.move_forward(dc,self.BALL_MOVEX)
-                    parent.publish_master_status(True,True)
-                    break
-            elif ball.x != self.BALL_START[i][0]:
-                if self.wait_count[i] < self.WAIT:
-                    self.wait_count[i] += 1
-                    ball.hold_ball(dc)
-                    break
-                else:
-                    self.wait_count[i] = 0
-                    ball.move_ball(dc,self.BALL_START[i])
-            else:
-                ball.move_ball(dc,self.BALL_START[i])
-                parent.publish_force_status(False,False)
 
     def generate_ws(self,ws):
-        return self.ws_gen.ws_generator(ws), time.time
+        return self.ws_gen.generate_ws(ws)
 
     def _background(self, evt, dc):
         """set up the device for painting"""

@@ -1,6 +1,7 @@
 #! /usr/bin/env/python3
 
 import numpy as np
+import wx
 
 class Ball(object):
     def __init__(self, l_xy, radius, x_lim, color="RED"):
@@ -81,7 +82,7 @@ class ws_generator():
                 elif actuation == "EV":
                     intensity[2*i+1][ind[1]+self.obj.TEXTBOX_WIDTH] = amp
 
-            elif texture == "Triangular":
+            elif shape == "Triangular":
                 triangle = np.zeros(len(self.obj.WIDTH))
                 slope = 2.0*frequency/self.obj.HAPTIC_WIDTH
                 triangle[self.TEXTBOX_WIDTH] = -1.0
