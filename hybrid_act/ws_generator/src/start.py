@@ -115,7 +115,7 @@ class Frame(start_utils.GuiFrame):
 
             self.randomize_output()
             self.define_correct_selection()
-            intensity, y_ws = self.panel.generate_ws(self)
+            intensity, y_ws = self.panel.generate_ws(self.rand_output)
             self.publish_intensity(intensity,y_ws)
 
         else:
@@ -159,7 +159,7 @@ class Frame(start_utils.GuiFrame):
         self.master_force_pub.publish(b)
         b.data = actuation_status
         self.master_actuation_pub.publish(b)
-        
+
     def force_callback(self,force_array):
         self.tanforce_publish = [force_array.tanforce_1,force_array.tanforce_2]
         self.normforce_publish = [force_array.normforce_1,force_array.normforce_2]
