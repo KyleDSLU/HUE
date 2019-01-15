@@ -1,30 +1,39 @@
-//--------------------------------------------------------------------------
-// Kyle DeProw 
-// 9-13-2018 
-//--------------------------------------------------------------------------
+//----------------------------------------------------------------------
+// Kyle DeProw
+// 10-14-2018
+//----------------------------------------------------------------------
 
-//#define encoderPinA 2
-//#define encoderPinB 3
+#include <SPI.h>
+#include <MD_AD9833.h>
 
+// Pins for SPI comm with the AD9833 IC
+#define DATA  11  ///< SPI Data pin number
+#define CLK   13  ///< SPI Clock pin number
+#define FSYNC_UFM 10  ///< SPI Load pin number (FSYNC in AD9833 usage)
+#define FSYNC_EV 9  ///< SPI Load pin number (FSYNC in AD9833 usage)
 
-int pwmPin = 5;
-int dir1 = 6;
-int dir2 = 7;
+MD_AD9833  UFM(FSYNC_UFM); // Hardware SPI
+MD_AD9833  EV(FSYNC_EV); // Hardware SPI
 
-int s1 = 3;
-int s2 = 4;
-int s3 = 5;
-int s4 = 6;
-int s5 = 7;
+int f0 = A0;
+int f1 = A1;
+int f2 = A2;
+int f3 = A3;
+int f4 = A4;
 
-//array a = [1,2,3,4,5]);
-int incomingMsgSize = 3;
-byte motor_speed_msb;
-byte motor_speed_lsb;
-signed short motor_speed;
-char resetChar = 'r';
-char startChar = '3';
-byte currentCase = startChar;
+unsigned short f0_read;
+unsigned short f1_read;
+unsigned short f2_read;
+unsigned short f3_read;
+unsigned short f4_read;
+
+byte ufmCase = 2;
+byte evCase = 3;
+byte forceCase = 4;
+byte count = 0;
+byte freq_msb;
+byte freq_lsb;
+unsigned short freq;
 
 int iter = 0;
 bool IGNORE_FLAG;
@@ -32,42 +41,23 @@ int msgTimeout = 1e4;
 char inByte;
 byte checksum;
 
-//  encoder
-/*volatile bool _EncoderASet;
-volatile bool _EncoderBSet;
-volatile short encoderCount = 0;
-*/
 
 
-// --------------------------------------------------------------
-// Setup function -- NO NEED TO EDIT
-// --------------------------------------------------------------
-
-void setup()
-{
+//--------------------------------------------------------------------------------
+void setup() {
   Serial.begin(57600);
 
-  // encoder
-  //pinMode(encoderPinA, INPUT); 
-  //pinMode(encoderPinB, INPUT); 
-
-  // H-Bridge
-  pinMode(dir1, OUTPUT);
-  pinMode(dir2, OUTPUT);
+  pinMode(f0,INPUT);
+  pinMode(f1,INPUT);
+  pinMode(f2,INPUT);
+  pinMode(f3,INPUT);
+  pinMode(f4,INPUT);
   
-  // turn on pullup resistors
-  //digitalWrite(encoderPinA, HIGH);
-  //digitalWrite(encoderPinB, HIGH);
-
-  // encoder pin on interrupt 0 (pin 2)
- // attachInterrupt(0, doEncoder, CHANGE);
-
 }
 
 // SendTwoByte Int accepts 2 byte int input and sends corresponding msb and lsb
 //   over Serial
-void SendTwoByteInt(int intin )
-{
+void SendTwoByteInt( int intin ){
   unsigned char lsb, msb;
   lsb = ( unsigned char )intin;
   msb = getsecondbyte(intin);
@@ -80,123 +70,95 @@ unsigned char getsecondbyte( int input ){
     output = ( unsigned char )(input >> 8);
     return output;
 }
+//--------------------------------------------------------------------------------
 
-// CommandMotor accepts accepts a speed between -255 and 255 and outputs
-//   speed to PWM pin
-void CommandMotor(int speed){
-  if (speed > 0){
-    digitalWrite(dir1, LOW);
-    digitalWrite(dir2, HIGH);
-    analogWrite(pwmPin, speed);
+void loop() {
+  if (count == 0){
+    MD_AD9833::mode_t mode;
+    UFM.begin();
+    EV.begin();
+    mode = MD_AD9833::MODE_SINE;
+    UFM.setMode(mode);
+    EV.setMode(mode);
+    count++;
   }
-  else if (speed < 0){
-    digitalWrite(dir1, HIGH);
-    digitalWrite(dir2, LOW);
-    analogWrite(pwmPin, abs(speed));
-  }
-  else {
-    digitalWrite(dir1, LOW);
-    digitalWrite(dir2, LOW);
-    analogWrite(pwmPin, 0);
-  }
-}
 
-// --------------------------------------------------------------
-// Main Loop
-// --------------------------------------------------------------
-void loop()
-{
-  //Loop until Serial is available
   if ( Serial.available() > 0 ) {
     inByte = Serial.read();
-    // When Serial is available, look for start character
-    if ( inByte == resetChar ) { 
-      //encoderCount = 0;
-      checksum = resetChar;
-      Serial.write(checksum);
-    }
-    else if ( inByte == '2' ) {
-        startChar = '2';
-        // UFM Case
-        iter = 0;
-        IGNORE_FLAG = false;
-        while ( Serial.available() < incomingMsgSize - 1 ) 
-        {
-            iter++;
-            // Handling a timeout condition
-            if ( iter > msgTimeout ) {
-                IGNORE_FLAG = true;
-                break;
-            }
-        }
-        if ( !IGNORE_FLAG ) {
-          
-          motor_speed_msb = Serial.read();
-          motor_speed_lsb = Serial.read();
-          checksum = startChar + motor_speed_msb + motor_speed_lsb;
-          motor_speed = ((unsigned short)motor_speed_msb << 8) + motor_speed_lsb;
-          Serial.write(checksum);
+    if ( inByte == ufmCase ) {
+      // Wait for full incoming packet before moving on
+      iter = 0;
+      IGNORE_FLAG = false;
+      while ( Serial.available() < 2 ) {
+          iter++;
+          // Handling a timeout condition
+          if ( iter > msgTimeout ) {
+              IGNORE_FLAG = true;
+              break;
           }
-   }
+       }
+       if ( !IGNORE_FLAG ) {
+         freq_msb = Serial.read();
+         freq_lsb = Serial.read();
+         //phase_byte = Serial.read();
+
+         checksum = ufmCase + freq_msb + freq_lsb;// + phase_byte;
+         freq = ((unsigned short)freq_msb << 8) + freq_lsb;
+         //phase = ((signed short )phase_byte << 8 ) 
+         MD_AD9833::channel_t chan;
+         chan = MD_AD9833::CHAN_0;
+         UFM.setFrequency(chan, freq); 
+         //UFM.setPhase(chan, phase);
+
+         Serial.write(checksum);
+        }
+    }
     
-    else if (inByte ==  '3'){
-        startChar = '3';
-    // EV Case
-        iter = 0;
-        IGNORE_FLAG = false;
-        while ( Serial.available() < incomingMsgSize - 1 ) 
-        {
-            iter++;
-            // Handling a timeout condition
-            if ( iter > msgTimeout ) {
-                IGNORE_FLAG = true;
-                break;
-            }
-        }
-        if ( !IGNORE_FLAG ) {
-          
-          motor_speed_msb = Serial.read();
-          motor_speed_lsb = Serial.read();
-          checksum = startChar + motor_speed_msb + motor_speed_lsb;
-          motor_speed = ((unsigned short)motor_speed_msb << 8) + motor_speed_lsb;
-          Serial.write(checksum);
-        }
-    }
-    else if (inByte == '4'){
-    // Analog Signal reads
-        startChar = '4';
-        iter = 0;
-        IGNORE_FLAG = false;
-        int val = 0;
-        int i = 0;
-        while ( Serial.available() < incomingMsgSize - 1 ) 
-        {
-            iter++;
-            // Handling a timeout condition
-            if ( iter > msgTimeout ) {
-                IGNORE_FLAG = true;
-                break;
-            }
+    else if ( inByte == evCase ) {
+      // Wait for full incoming packet before moving on
+      iter = 0;
+      IGNORE_FLAG = false;
+      while ( Serial.available() < 2 ) {
+          iter++;
+          // Handling a timeout condition
+          if ( iter > msgTimeout ) {
+              IGNORE_FLAG = true;
+              break;
           }
-          if ( !IGNORE_FLAG ) {
-          
-          motor_speed_msb = Serial.read();
-          motor_speed_lsb = Serial.read();
-          checksum = startChar + motor_speed_msb + motor_speed_lsb;
-          motor_speed = ((unsigned short)motor_speed_msb << 8) + motor_speed_lsb;
-          Serial.write(checksum);
-          
-          for(int i = 1; i<=5; ++i){
-          val = analogRead(i);
-          SendTwoByteInt(val);
-          }
-    };
+       }
+     if ( !IGNORE_FLAG ) {
+       freq_msb = Serial.read();
+       freq_lsb = Serial.read();
+       //phase_byte = Serial.read();
 
-          
-          //SendTwoByteInt(encoderCount);
-        }
-        
-        }
+       checksum = evCase + freq_msb + freq_lsb;// + phase_byte;
+       freq = ((unsigned short)freq_msb << 8) + freq_lsb;
+       //phase = ((signed short)phase_byte << 8); 
+       MD_AD9833::channel_t chan;
+       chan = MD_AD9833::CHAN_0;
+       EV.setFrequency(chan, freq);
+       //EV.setPhase(chan, phase);
+       
+       Serial.write(checksum);
+      }
     }
-  
 
+    else if ( inByte == forceCase ) {
+
+     checksum = forceCase;
+
+     f0_read = analogRead(f0);
+     f1_read = analogRead(f1);
+     f2_read = analogRead(f2);
+     f3_read = analogRead(f3);
+     f4_read = analogRead(f4);
+      
+     Serial.write(checksum);
+     SendTwoByteInt(f0_read);
+     SendTwoByteInt(f1_read);
+     SendTwoByteInt(f2_read);
+     SendTwoByteInt(f3_read);
+     SendTwoByteInt(f4_read);
+    }
+  }
+}
