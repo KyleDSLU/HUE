@@ -5,7 +5,7 @@ import numpy as np
 
 import wx
 
-from utils import Ball, ws_generator
+from utils import Ball, Generate_WS
 
 class GuiPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):

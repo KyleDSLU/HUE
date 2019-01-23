@@ -5,6 +5,7 @@
 
 #include <SPI.h>
 #include <MD_AD9833.h>
+#include <Adafruit_SI5351.h>
 
 // Pins for SPI comm with the AD9833 IC
 #define DATA  11  ///< SPI Data pin number
@@ -41,6 +42,7 @@ int msgTimeout = 1e4;
 char inByte;
 byte checksum;
 
+Adafruit_SI5351 clockgen = Adafruit_SI5351();
 
 
 //--------------------------------------------------------------------------------
@@ -52,6 +54,24 @@ void setup() {
   pinMode(f2,INPUT);
   pinMode(f3,INPUT);
   pinMode(f4,INPUT);
+
+  /* Initialise the sensor */
+  if (clockgen.begin() != ERROR_NONE)
+  {
+    /* There was a problem detecting the IC ... check your connections */
+    while(1);
+  }
+  Serial.println("OK!");
+  
+  /* FRACTIONAL MODE --> More flexible but introduce clock jitter */
+  /* Setup PLLB to fractional mode (XTAL * 16) */
+  /* Setup Multisynth 1 to 25MHz (PLLB/16) */
+  clockgen.setupPLL(SI5351_PLL_B, 16, 0, 1);
+  Serial.println("Set Output #1 to 25MHz");  
+  clockgen.setupMultisynth(1, SI5351_PLL_B, 16, 0, 1);
+    
+  /* Enable the clocks */
+  clockgen.enableOutputs(true);
   
 }
 
@@ -80,6 +100,10 @@ void loop() {
     mode = MD_AD9833::MODE_SINE;
     UFM.setMode(mode);
     EV.setMode(mode);
+    
+    MD_AD9833::channel_t chan;
+    chan = MD_AD9833::CHAN_0;
+    UFM.setFrequency(chan, 31000); 
     count++;
   }
 
