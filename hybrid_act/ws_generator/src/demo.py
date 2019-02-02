@@ -15,8 +15,7 @@ class Frame(demo_utils.DemoFrame):
     def __init__(self):
         """"""
         rospy.init_node('demo_ws')
-        self.ws_ufm_pub = rospy.Publisher('/cursor_position/workspace/ufm', WSArray, queue_size = 0)
-        self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
+        self.ws_hybrid_pub = rospy.Publisher('/cursor_position/workspace/hybrid', WSArray, queue_size = 0)
         self.master_force_pub = rospy.Publisher('/hue_master/force', Bool, queue_size = 0)
         self.master_actuation_pub = rospy.Publisher('/hue_master/actuation', Bool, queue_size = 0)
 

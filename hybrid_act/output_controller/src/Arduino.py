@@ -14,7 +14,6 @@ class ArduinoController():
     def send_receive(self,arduino_case,msg=None,encoding=None):
         if self.ser:
             packet = bytearray(struct.pack('B',arduino_case))
-            print(packet,msg)
             if msg:
                 packet += struct.pack(encoding,msg)
 
@@ -25,8 +24,6 @@ class ArduinoController():
             print ('Serial Communication not Established')
 
     def send_receive_arduino(self,packet,incoming_msgsize):
-        print(packet, len(packet))
-    
         checksum = sum(packet) & 0xFF
         checksum_received = None
         resend_count = 0
@@ -45,17 +42,15 @@ class ArduinoController():
             self.ser.write(packet)
 
             # Read data packet off of serial line, we know how large this data should be..
-            data =self.ser.read(incoming_msgsize)
+            data = self.ser.read(incoming_msgsize)
              
             print(len(data),incoming_msgsize) 
             if len(data) < incoming_msgsize:
                 checksum_received = None
                 print('Data read in is shorter than expected message size')
-                #print('Checksum: ' + str(checksum) + '\t Received: ' + str(checksum_received) + '\n' ) 
             else:
-                dummy = data[0]
-                checksum_received = struct.unpack('B',dummy)[0]
-                #print('Packet: ' + packet + '\t data[0]: ' + data[0] + '\tChecksomereceived: ' + checksum_received + '\n' ) 
+                checksum_received = struct.unpack('B', data[0])[0]
+
         return data
 
     def init_port(self, port, baudrate, timeout = 0.25):

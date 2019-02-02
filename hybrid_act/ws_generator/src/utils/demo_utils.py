@@ -56,7 +56,7 @@ class DemoPanel(wx.Panel):
         self.RECTANGLE_SEPERATION = int((self.HEIGHT-self.FIRST_RECTANGLE_Y-self.BOTTOM_SPACE-self.RECTANGLES*self.RECTANGLE_SIZE)/3.0)
 
         #set up textbox and lines
-        self.TEXTBOX_WIDTH = 0.20*self.WIDTH
+        self.TEXTBOX_WIDTH = 0.15*self.WIDTH
         self.TEXTBOX_X = 0.04*self.WIDTH
         self.TEXTBOX_XOFFSET = 0.80*self.WIDTH
         self.TEXTBOX_Y = self.RECTANGLE_SIZE*0.35
@@ -74,7 +74,6 @@ class DemoPanel(wx.Panel):
         self.wait_count = [0]*len(self.ball)
         first_ball_start = int(self.FIRST_RECTANGLE_Y+self.BALL_RADIUS+self.BALL_YOFFSET)
         # second_ball_start = int(first_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
-        # third_ball_start = int(second_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
         self.BALL_START = [[self.BALL_LEFTMARGIN,first_ball_start]]#,[self.BALL_LEFTMARGIN,second_ball_start],[self.BALL_LEFTMARGIN,third_ball_start]]
 
         for i in range(len(self.ball)):
@@ -170,7 +169,7 @@ class DemoPanel(wx.Panel):
 
             dc.DrawBitmap(picture,(self.WIDTH-width)/2,(self.HEIGHT-height)/2,True)
             dc.SetFont(wx.Font(self.TEXTBOX_FONTSIZE, wx.ROMAN, wx.FONTSTYLE_NORMAL, wx.NORMAL))
-            """EV Rectangle"""
+            """Hybrid Rectangle"""
             rectangle_y = self.FIRST_RECTANGLE_Y
             dc.SetPen(wx.Pen(self.RECTANGLE_COLOR))
             dc.SetBrush(wx.Brush(self.RECTANGLE_COLOR))
@@ -180,31 +179,7 @@ class DemoPanel(wx.Panel):
             dc.SetBrush(wx.Brush(self.TEXTBOX_COLOR))
             dc.DrawRectangle(0, rectangle_y, self.TEXTBOX_WIDTH, self.RECTANGLE_SIZE)
             textbox = wx.Rect(self.TEXTBOX_X, rectangle_y+self.TEXTBOX_Y)
-            dc.DrawLabel("", textbox, alignment=1)
-
-            # """UFM Rectangle"""
-            # rectangle_y = self.FIRST_RECTANGLE_Y+(self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
-            # dc.SetPen(wx.Pen(self.RECTANGLE_COLOR))
-            # dc.SetBrush(wx.Brush(self.RECTANGLE_COLOR))
-            # # set x, y, w, h for rectangle
-            # dc.DrawRectangle(0, rectangle_y, self.WIDTH, self.RECTANGLE_SIZE)
-            # dc.SetPen(wx.Pen(self.TEXTBOX_COLOR))
-            # dc.SetBrush(wx.Brush(self.TEXTBOX_COLOR))
-            # dc.DrawRectangle(0, rectangle_y, self.TEXTBOX_WIDTH, self.RECTANGLE_SIZE)
-            # textbox = wx.Rect(self.TEXTBOX_X, rectangle_y+self.TEXTBOX_Y)
-            # dc.DrawLabel("UFM", textbox, alignment=1)
-
-            # """Hybrid Rectangle"""
-            # rectangle_y = self.FIRST_RECTANGLE_Y+(self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)*2
-            # dc.SetPen(wx.Pen(self.RECTANGLE_COLOR))
-            # dc.SetBrush(wx.Brush(self.RECTANGLE_COLOR))
-            # # set x, y, w, h for rectangle
-            # dc.DrawRectangle(0, rectangle_y, self.WIDTH, self.RECTANGLE_SIZE)
-            # dc.SetPen(wx.Pen(self.TEXTBOX_COLOR))
-            # dc.SetBrush(wx.Brush(self.TEXTBOX_COLOR))
-            # dc.DrawRectangle(0, rectangle_y, self.TEXTBOX_WIDTH, self.RECTANGLE_SIZE)
-            # textbox = wx.Rect(self.TEXTBOX_X, rectangle_y+self.TEXTBOX_Y)
-            # dc.DrawLabel("Hybrid", textbox, alignment=1)
+            dc.DrawLabel("Hybrid", textbox, alignment=1)
 
             bmp = wx.EmptyBitmap(self.WIDTH, self.HEIGHT)
             memDC = wx.MemoryDC()
@@ -237,16 +212,48 @@ class DemoPanel(wx.Panel):
             self.SubmitBtn.Enable()
 
     def clearPanel(self):
+        #clears panel when frame combo boxes are rolled up.
         self.odc.Clear()
         redraw_list = [True] * len(self.ball)
         pos_list = self.BALL_START
         self.draw_balls(redraw_list, pos_list)
 
-        #clears panel when frame combo boxes are rolled up.
-
 
 class DemoFrame(wx.Frame):
     def __init__(self, velocity, refresh, length, *args, **kw):
+        self._layout(velocity, refresh, length)
+
+    def update_panel(self,evt):
+        try:
+            self.panel.updateFlag = True  
+        except AttributeError:
+            pass 
+            #catching error if panel attribute does not exist i
+
+    def on_back_button(self,event):
+        #checks if the panel needs updated after the frame dropdowns have covered it
+        f = main.frameMain(None)
+        self.Close()
+        f.Show()
+
+    def checkSelect(self, evt):
+        #checks to see if all selections have been made before submit button is enabled
+        if not ((self.frequency.GetValue() == '') or (self.texture.GetValue() == '') or (self.Amplitude_hybrid.GetValue() == '')):
+            self.submit_button.Enable()            
+
+    def widgetMaker(self, widget, objects):
+        #helps with makeing combobox lists
+        for obj in objects:
+            widget.Append(obj.shape, obj)
+
+    def on_close(self, event):
+        self.timer.Stop()
+        self.Destroy()
+
+    def on_timer(self, event):
+        self.panel.update_drawing()
+
+    def _layout(self, velocity, refresh, length):
         wx.Frame.__init__(self, parent = None, id = wx.ID_ANY, title = "Haptic Demo", size = wx.GetDisplaySize(), style = wx.SYSTEM_MENU)
         WIDTH, HEIGHT = self.GetClientSize()
         FONTSCALING = 0.01
@@ -255,9 +262,10 @@ class DemoFrame(wx.Frame):
         HORIZSPACERSIZE = 4
         VERTSPACERMULT = HEIGHT*0.01
 
-        TEXTSPACEMULT = 0.0047
-        TEXTSPACING = int(WIDTH*TEXTSPACEMULT)
-        TEXTOFFSETS = [-1,-1,1,-4,-13,-15,-8,5]
+        LEFTTEXTSPACING = int(WIDTH*0.008)
+        BUTTONTEXTSPACING = int(WIDTH*0.007)
+        COMBOTEXTSPACING = int(WIDTH*0.0135)
+        TEXTOFFSETS = [0,0,0,3,2]
 
         icon_size = WIDTH*ICONSCALING
         combo_size = WIDTH*COMBOSCALING
@@ -323,14 +331,6 @@ class DemoFrame(wx.Frame):
         self.widgetMaker(self.texture, textures)
         
         
-        self.Amplitude_EV = wx.ComboBox(self,
-                              size=(combo_size,combo_size),
-                              choices=sampleList,
-                              pos=(0.4*WIDTH,0.05*HEIGHT),
-                              style=wx.CB_READONLY)
-        self.widgetMaker(self.Amplitude_EV, amplitudes)
-         
-        
         self.Amplitude_hybrid = wx.ComboBox(self,
                               size=(combo_size,combo_size),
                               choices=sampleList,
@@ -354,46 +354,27 @@ class DemoFrame(wx.Frame):
         button_sizer.Add(back_button, 1, 0, 0) 
         button_sizer.Add(self.frequency, 2) 
         button_sizer.Add(self.texture, 2) 
-        button_sizer.Add(self.Amplitude_EV, 2) 
         button_sizer.Add(self.Amplitude_hybrid, 2) 
         button_sizer.Add(self.submit_button, 1, 0, 0) 
         button_sizer.Add(spacer_buffer_right, 1, 0, 0)
         
-        s = " " * (HORIZSPACERSIZE + TEXTSPACING + TEXTOFFSETS[0]) + "Back"
-        back_label = wx.StaticText(self, 1, s)
-        s = " " * (TEXTSPACING - len("Back") + TEXTOFFSETS[1]) + "Frequency"
-        freq_label = wx.StaticText(self, 1, s)
-        s = " " * (TEXTSPACING - len("Frequency") + TEXTOFFSETS[2]) + "Texture"
-        texture_label = wx.StaticText(self, 1,s)
-        s = " " * (TEXTSPACING - len("Texture") + TEXTOFFSETS[3]) + "EV"
-        ev_label = wx.StaticText(self, 1, s)
-        s = " " * (TEXTSPACING - len("Texture") + TEXTOFFSETS[5]) + "Hybrid"
-        hybrid_label = wx.StaticText(self, 1, s)
-        s = " " * (TEXTSPACING - len("Hybrid") + TEXTOFFSETS[6]) + "Submit"
-        s += " " * (TEXTSPACING + TEXTOFFSETS[7])
-        submit_label = wx.StaticText(self, 1, s) 
+        s = " " * (LEFTTEXTSPACING + TEXTOFFSETS[0]) + "Back"
+        s += " " * (BUTTONTEXTSPACING - len("Back") + TEXTOFFSETS[1]) + "Frequency"
+        s += " " * (COMBOTEXTSPACING - len("Frequency") + TEXTOFFSETS[2]) + "Texture"
+        s += " " * (COMBOTEXTSPACING - len("Texture") + TEXTOFFSETS[3]) + "Hybrid"
+        s += " " * (COMBOTEXTSPACING - len("Hybrid") + TEXTOFFSETS[4]) + "Submit"
+        labels = wx.StaticText(self, 1, s) 
         
         font = wx.Font(HEIGHT*FONTSCALING, wx.ROMAN, wx.NORMAL, wx.NORMAL)
          
         #blank space is workaround for screen cover 
-        back_label.SetFont(font) 
-        submit_label.SetFont(font) 
-        freq_label.SetFont(font)  
-        texture_label.SetFont(font) 
-        ev_label.SetFont(font)  
-        hybrid_label.SetFont(font) 
+        labels.SetFont(font) 
         
         self.frequency.SetFont(font) 
         self.texture.SetFont(font) 
-        self.Amplitude_EV.SetFont(font) 
         self.Amplitude_hybrid.SetFont(font) 
 
-        text_sizer.Add(back_label, 1)
-        text_sizer.Add(freq_label,3)
-        text_sizer.Add(texture_label, 3)
-        text_sizer.Add(ev_label, 3)
-        text_sizer.Add(hybrid_label, 3)  
-        text_sizer.Add(submit_label, 1) 
+        text_sizer.Add(labels, 1) 
         
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Bind(wx.EVT_TIMER, self.on_timer)
@@ -401,12 +382,10 @@ class DemoFrame(wx.Frame):
 
         self.frequency.Bind(wx.EVT_TEXT, self.checkSelect)
         self.texture.Bind(wx.EVT_TEXT, self.checkSelect)
-        self.Amplitude_EV.Bind(wx.EVT_TEXT, self.checkSelect)
         self.Amplitude_hybrid.Bind(wx.EVT_TEXT, self.checkSelect)
         
         self.frequency.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
         self.texture.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
-        self.Amplitude_EV.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
         self.Amplitude_hybrid.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
          
         back_button.Bind(wx.EVT_BUTTON, self.on_back_button) 
@@ -418,7 +397,6 @@ class DemoFrame(wx.Frame):
         tool_sizer.Add(self.panel,10,wx.EXPAND) 
 
         #adds the sizers to a sizer to section of text, buttons, and panel display 
-        self.selectFlag = False
         self.SetSizer(tool_sizer)
          
         tool_sizer.Layout() 
@@ -429,62 +407,23 @@ class DemoFrame(wx.Frame):
         self.WIDTH = WIDTH
 
     def generate_workspace(self, evt):
-        ws = {0: ["EV", self.Amplitude_EV.GetValue(), self.texture.GetValue(), self.frequency.GetValue()],
-              1: ["UFM", self.Amplitude_EV.GetValue(), self.texture.GetValue(), self.frequency.GetValue()],
-              2: ["Hybrid", self.Amplitude_hybrid.GetValue(), self.texture.GetValue(), self.frequency.GetValue()]}
+        ws = {0: ["Hybrid", self.Amplitude_hybrid.GetValue(), self.texture.GetValue(), self.frequency.GetValue()]}
         
-        intensity, y_ws = Generate_WS(self.panel, ws)
+        ws_compress = 2
+        intensity, y_ws = Generate_WS(self.panel, ws, ws_compress)
         # Account for sizers above demo panel
         y_ws += (self.HEIGHT - self.panel.HEIGHT)
 
-        ufm_msg = WSArray()
-        ufm_msg.header.stamp = rospy.Time(0.0)
-        ufm_msg.y_step = len(y_ws)
-        ufm_msg.y_ws = y_ws.flatten().tolist()
-        ufm_msg.int_step = len(intensity)
-        ufm_msg.intensity = intensity[(0,2,4),:].flatten().tolist()
+        hybrid_msg = WSArray()
+        hybrid_msg.header.stamp = rospy.Time(0.0)
+        hybrid_msg.y_step = len(y_ws)
+        hybrid_msg.y_ws = y_ws.flatten().tolist()
+        hybrid_msg.int_compress = ws_compress
+        hybrid_msg.intensity = intensity.flatten().tolist()
 
-        ev_msg = WSArray()
-        ev_msg.header.stamp = rospy.Time(0.0)
-        ev_msg.y_step = len(y_ws)
-        ev_msg.y_ws = y_ws.flatten().tolist()
-        ev_msg.int_step = len(intensity)
-        ev_msg.intensity = intensity[(1,3,5),:].flatten().tolist()
-
-        self.ws_ufm_pub.publish(ufm_msg)
-        self.ws_ev_pub.publish(ev_msg)
         #sends values once submit button is pressed
+        self.ws_hybrid_pub.publish(hybrid_msg)
 
-    def update_panel(self,evt):
-        try:
-            self.panel.updateFlag = True  
-        except AttributeError:
-            pass 
-            #catching error if panel attribute does not exist i
-
-    def on_back_button(self,event):
-        f = main.frameMain(None)
-        self.Close()
-        f.Show()
-
-    #checks if the panel needs updated after the frame dropdowns have covered it
-    def checkSelect(self, evt):
-        if not ((self.frequency.GetValue() == '') or (self.texture.GetValue() == '') or (self.Amplitude_EV.GetValue() == '') or (self.Amplitude_hybrid.GetValue() == '')):
-            self.submit_button.Enable()            
-
-    #checks to see if all selections have been made before submit button is enabled
-    def widgetMaker(self, widget, objects):
-        """"""
-        for obj in objects:
-            widget.Append(obj.shape, obj)
-    #helps with makeing combobox lists
-
-    def on_close(self, event):
-        self.timer.Stop()
-        self.Destroy()
-
-    def on_timer(self, event):
-        self.panel.update_drawing()
 
 if __name__ == '__main__':
     app = wx.App(False)

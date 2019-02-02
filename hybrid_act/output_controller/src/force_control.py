@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import Bool, Int8
-from output_controller.msg import IntArray, ForceArray, WSArray
+from std_msgs.msg import Bool, Float32
+from output_controller.msg import ForceArray, ForceChannel, WSArray
 from Arduino import ArduinoController
 
 class Force_Controller(ArduinoController):
@@ -12,25 +12,35 @@ class Force_Controller(ArduinoController):
 
         self.force_case = rospy.get_param('~arduino_case')
 
-        ArduinoController.__init__(self,port='/dev/ttyAMA0',baudrate = 57600)
+        ArduinoController.__init__(self, port='/dev/ttyAMA0', baudrate = 115200)
 
-        self.norm_force_publish = [[None], [None]]
-        self.tan_force_publish = [[None], [None]]
-        self.intensity_publish = [[None], [None]]
+        # Initialize constants
+        self.INITIALIZE_LENGTH = 200
+        self.COUNT_THRESHOLD = 100
 
-        self.initialize_length = 1000
-        self.norm_force = [None]*self.initialize_length
-        self.tan_force = [None]*self.initialize_length
-        self.intensity = [None]*self.initialize_length
-        self.rectangle_choice = None
-        self.count = 0
-
-        self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
-        self.ev_sub = rospy.Subscriber('/ev/intensity', Int8, self.ev_callback, queue_size = 1)
-        self.ufm_sub = rospy.Subscriber('/ufm/intensity', Int8, self.ev_callback, queue_size = 1)
+        # Initialize subs and pubs
         self.ws_sub = rospy.Subscriber('/cursor_position/workspace', WSArray, self.ws_callback, queue_size = 1)
-        self.master_force_sub = rospy.Subscriber('/hue_master/force', Bool, self.forcestatus_callback, queue_size = 1)
-        self.force_pub = rospy.Publisher('/cursor_position/force/force_list', ForceArray, queue_size = 1)
+        self.force_status_sub = rospy.Subscriber('/hue_master/force', Bool, self.forcestatus_callback, queue_size = 1)
+        self.forcechan_sub = rospy.Subscriber('/force_recording/force_channel', ForceChannel, self.forcechan_callback, queue_size = 1)
+        self.force_pub = rospy.Publisher('/force_recording/force_records', ForceArray, queue_size = 1)
+        self.normforce_pub = rospy.Publisher('/force_recording/normal_force', Float32, queue_size = 1)
+        self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
+
+        # Initialize force arrays and x_position
+        self.nan = np.empty([1,self.INITIALIZE_LENGTH])
+        self.nan[:] = np.nan
+        self.norm_force[:] = self.nan[:]
+        self.tan_force[:] = self.nan[:]
+        self.x_position[:] = self.nan[:]
+        nan_vector = np.empty(len(self.nan))
+        nan_vector[:] = self.nan[:] 
+        nan_vector.shape = (1,self.INITIALIZE_LENGTH)
+        self.norm_force_publish[:] = nan_vector[:]
+        self.tan_force_publish[:] = nan_vector[:] 
+        self.x_position_publish[:] = nan_vector[:] 
+
+        self.count = 0
+        self.forcechan = None
 
         self.initialize()
 
@@ -38,63 +48,57 @@ class Force_Controller(ArduinoController):
         rospy.spin()
 
     def initialize(self):
-        force_return = self.send_receive(self.force_case)
-        b = [0]*int(len(force_return)-1)
-        forces = [0]*len(b)/2
-        for i in range(len(forces)):
-            forces[i] = struct.unpack('>H',x[2*i+1,2*i+3])[0]
-        self.initial_forces = forces
+        self.initial_forces = self.force_unpack(self.send_receive(self.force_case))
 
-    def ev_callback(self,intensity):
-        self.ev_int = intensity.data
+    def forcechan_callback(self, forcechannel):
+        self.channels = forcechannel.channels
+        self.forcechan = forcechannel.measure_channel
+        # Extend arrays if more than 1 channel
+        if self.channels != len(self.norm_force_publish):
+            l = len(self.norm_force)
+            for i in range(self.channels-l-1):
+                self.norm_force_publish = np.vstack([self.norm_force, self.nan])
+                self.tan_force_publish = np.vstack([self.tan_force, self.nan])
+                self.x_position_publish = np.vstack([self.x_position, self.nan])
 
-    def ufm_callback(self,intensity):
-        self.ufm_int = intensity.data
-        
     def cursor_callback(self,ir_xy):
         if self.force_status:
-            if self.rectangle_choice == None:
-                ir_y = ir_xy.data[1]
-                for i in range(self.ystep):
-                    if list(self.y_ws[i*2]) <= ir_y <= list(self.y_ws[i*2+1]):
-                        self.rectangle_choice = i
-                        break
-           
-            force_return = self.send_receive(self.force_case)
-            byt = [0]*int(len(force_return)-1)
-            forces = [0]*len(b)/2
-            for i in range(len(forces)):
-                forces[i] = struct.unpack('>H',x[2*i+1,2*i+3])[0]
+            forces = self.force_unpack(self.send_receive(self.force_case))
+            # Offset for initial conditions
             forces -= self.initial_forces
-            self.norm_force[self.count] = (sum(forces[:3])/float(len(forces[:3])))
+
+            self.norm_force[self.count] = int(sum(forces[:3])/float(len(forces[:3]))))
             self.tan_force[self.count] = forces[4]
-            self.intensity[self.count] = self.ev_int - self.ufm_int
+            self.x_position[self.count] = ir_xy.data[0]
             self.count += 1
 
     def forcestatus_callback(self, force_status):
         force_status = force_status.data
         if self.force_status != force_status:
-            if self.force_status:
-                self.norm_force_publish[self.rectangle_choice] = self.norm_force[:self.count]
-                self.tan_force_publish[self.rectangle_choice] = self.tan_force[:self.count]
-                self.intensity_publish[self.rectangle_choice] = self.intensity[:self.count]
-                if not (None in self.norm_force_publish):
-                    force = ForceArray()
-                    force.tan_force1 = self.tan_force_publish[0]
-                    force.tan_force2 = self.tan_force_publish[1]
-                    force.norm_force1 = self.norm_force_publish[0]
-                    force.norm_force2 = self.norm_force_publish[1]
-                    force.intensity_1 = self.intensity_publish[0]
-                    force.intensity_2 = self.intensity_publish[1]
+            if self.force_status == True and count >= self.COUNT_THRESHOLD:
+                self.norm_force_publish[self.forcechan][:self.count] = self.norm_force[:self.count]
+                self.tan_force_publish[self.forcechan][:self.count] = self.tan_force[:self.count]
+                self.x_position_publish[self.forcechan][:self.count] = self.x_position[:self.count]
 
-                    self.force_pub.Publish(force)
+                force = ForceArray()
+                force.tan_force = self.tan_force_publish.flatten().tolist()
+                force.norm_force = self.norm_force_publish.flatten().tolist()
+                force.x_position = self.intensity_publish.flatten().tolist()
+                force.channels = self.channels
+                self.force_pub.Publish(force)
 
             self.force_status = force_status
-            self.norm_force = [None]*self.initialize_length
-            self.tan_force = [None]*self.initialize_length
-            self.intensity = [None]*self.initialize_length
-            self.rectangle_choice = None
+            self.norm_force[:] = self.nan
+            self.tan_force[:] = self.nan
+            self.x_position[:] = self.nan
+            self.forcechan = None
             self.count = 0
+
+    def force_unpack(self, force_input):
+        forces = [0]*len((force_input)/2)
+        for i in range(len(forces)):
+            forces[i] = struct.unpack('>H',force_input[2*i,2*i+2])[0]
+        return forces
 
     def ws_callback(self, ws):
         self.ystep = ws.ystep

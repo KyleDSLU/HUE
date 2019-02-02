@@ -31,9 +31,13 @@ unsigned short f4_read;
 byte ufmCase = 2;
 byte evCase = 3;
 byte forceCase = 4;
+byte phaseCase = 5;
 byte count = 0;
 byte freq_msb;
 byte freq_lsb;
+byte phase_msb;
+byte phase_lsb;
+unsigned short phase;
 unsigned short freq;
 
 int iter = 0;
@@ -61,13 +65,10 @@ void setup() {
     /* There was a problem detecting the IC ... check your connections */
     while(1);
   }
-  Serial.println("OK!");
-  
   /* FRACTIONAL MODE --> More flexible but introduce clock jitter */
   /* Setup PLLB to fractional mode (XTAL * 16) */
   /* Setup Multisynth 1 to 25MHz (PLLB/16) */
-  clockgen.setupPLL(SI5351_PLL_B, 16, 0, 1);
-  Serial.println("Set Output #1 to 25MHz");  
+  clockgen.setupPLL(SI5351_PLL_B, 16, 0, 1); 
   clockgen.setupMultisynth(1, SI5351_PLL_B, 16, 0, 1);
     
   /* Enable the clocks */
@@ -103,7 +104,10 @@ void loop() {
     
     MD_AD9833::channel_t chan;
     chan = MD_AD9833::CHAN_0;
-    UFM.setFrequency(chan, 31000); 
+    UFM.setFrequency(chan, 31000);
+    EV.setFrequency(chan, 31000); 
+    //EV.setPhase(chan, (uint16_t)100);
+    //UFM.setPhase(chan, (uint16_t)0);    
     count++;
   }
 
@@ -153,15 +157,12 @@ void loop() {
      if ( !IGNORE_FLAG ) {
        freq_msb = Serial.read();
        freq_lsb = Serial.read();
-       //phase_byte = Serial.read();
 
        checksum = evCase + freq_msb + freq_lsb;// + phase_byte;
        freq = ((unsigned short)freq_msb << 8) + freq_lsb;
-       //phase = ((signed short)phase_byte << 8); 
        MD_AD9833::channel_t chan;
        chan = MD_AD9833::CHAN_0;
        EV.setFrequency(chan, freq);
-       //EV.setPhase(chan, phase);
        
        Serial.write(checksum);
       }
@@ -183,6 +184,34 @@ void loop() {
      SendTwoByteInt(f2_read);
      SendTwoByteInt(f3_read);
      SendTwoByteInt(f4_read);
+    }
+ 
+    else if ( inByte == phaseCase ) {
+      // Wait for full incoming packet before moving on
+      iter = 0;
+      IGNORE_FLAG = false;
+      while ( Serial.available() < 2 ) {
+          iter++;
+          // Handling a timeout condition
+          if ( iter > msgTimeout ) {
+              IGNORE_FLAG = true;
+              break;
+          }
+       }
+     if ( !IGNORE_FLAG ) {
+       phase_msb = Serial.read();
+       phase_lsb = Serial.read();
+
+       phase = ((unsigned short)phase_msb << 8) + phase_lsb;
+
+       checksum = phaseCase + phase_msb + phase_lsb;       // + phase_byte; 
+       MD_AD9833::channel_t chan;
+       chan = MD_AD9833::CHAN_0;
+       //EV.setFrequency(chan, freq);
+       EV.setPhase(chan, phase);
+       
+       Serial.write(checksum);
+      }
     }
   }
 }

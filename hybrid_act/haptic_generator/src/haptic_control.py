@@ -2,7 +2,7 @@
 
 import numpy as np
 import rospy
-from std_msgs.msg import Int8,Bool
+from std_msgs.msg import Int8, Bool
 from haptic_generator.msg import IntArray, WSArray
 
 class haptic_controller():
@@ -24,10 +24,11 @@ class haptic_controller():
     def actuation_callback(self, ir_xy):
         ir_y = ir_xy.data[1]
         if self.ws and self.master:
-            intensity = 0.0
+            intensity = 50
             for i in range(self.ws.ystep):
                 if list(self.ws.y_ws)[i*2] <= ir_y <= list(self.ws.y_ws)[i*2+1]:
-                    ir_x = ir_xy.data[0]
+                    # scale x position by ws compression constant
+                    ir_x = int(ir_xy.data[0]/ws.int_compress)
                     intensity = list(self.ws.intensity)[ir_x]
                     break
                 else:
@@ -36,7 +37,6 @@ class haptic_controller():
             if (intensity >= self.last_intensity*0.99 or intensity <= self.last_intensity*1.01):
                 msg = Int8()
                 msg.data = intensity
-
                 self.int_pub.publish(msg)
                 self.last_intensity = intensity
 

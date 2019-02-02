@@ -1,19 +1,10 @@
 <?xml version="1.0"?>
 
 <launch>
-    
-    <node name="ufm_control" pkg="output_controller" type="output_control.py" output="screen">
-        <param name="name" value="ufm"/>
-        <param name="i2c_address" value="45" type="int"/>
-        <param name="scale" value="0.55"/>
-        <param name="arduino_case" value="2"/>
-    </node>
 
-    <node name="ev_control" pkg="output_controller" type="output_control.py" output="screen">
-        <param name="name" value="ev"/>
-        <param name="i2c_address" value="44" type="int"/>
-        <param name="scale" value="0.90"/>
-        <param name="arduino_case" value="3"/>
+    <node name="hybrid_control" pkg="output_controller" type="output_control.py" output="screen">
+        <param name="name" value="hybrid"/>
+        <param name="arduino_case" value="5"/>
     </node>
 
     <node name="force_control" pkg="output_controller" type="force_control.py" output="screen">

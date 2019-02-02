@@ -3,13 +3,8 @@
 <launch>
     <arg name="method" default="full"/>
 
-    <group if="$(eval method == 'full')">
-        <node name="ufm_haptics" pkg="haptic_generator" type="haptic_control.py" output="screen">
-            <param name="name" value="ufm"/>
-        </node>
-
-        <node name="ev_haptics" pkg="haptic_generator" type="haptic_control.py" output="screen">
-            <param name="name" value="ev"/>
+        <node name="hybrid_haptics" pkg="haptic_generator" type="haptic_control.py" output="screen">
+            <param name="name" value="hybrid"/>
         </node>
     </group>
 

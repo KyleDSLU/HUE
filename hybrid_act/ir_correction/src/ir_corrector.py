@@ -6,17 +6,10 @@ from ir_correction.msg import IntArray
 
 import os
 
-#if "SSH_CONNECTION" not in os.environ:
-    #print "Ir corrector running"
-#    import pyautogui
-#    RUN_FLAG = 1
-
 import pyautogui
+
 pyautogui.FAILSAFE = False
 RUN_FLAG = 1
-
-#else:
-#    RUN_FLAG = 0
 
 class IR_Controller():
 
@@ -24,7 +17,7 @@ class IR_Controller():
         rospy.init_node('cursor_control')
         self.cursor_pub = rospy.Publisher('/cursor_position/corrected', IntArray, queue_size=1)
         self.raw_pub = rospy.Publisher('/cursor_position/raw', IntArray, queue_size=1)
-        self.rate = 5
+        self.rate = 10
 
         self._xscale = 1.08
         self._yscale = 1.3115
@@ -38,7 +31,7 @@ class IR_Controller():
         r = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
             self.callback()
-            r.sleep
+            r.sleep()
 
     def callback(self):
         self.raw_position = list(pyautogui.position())
