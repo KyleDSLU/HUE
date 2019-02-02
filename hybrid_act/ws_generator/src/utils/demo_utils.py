@@ -222,7 +222,14 @@ class DemoPanel(wx.Panel):
 class DemoFrame(wx.Frame):
     def __init__(self, velocity, refresh, length, *args, **kw):
         self._layout(velocity, refresh, length)
+        self.time = wx.DateTime.Now()
+	#self.Bind(wx.EVT_TIMER, self.)
+	self.update_normal_force()
 
+    def update_normal_force(self, *args):
+	self.time = wx.DateTime.Now()
+	self.frequency.ChangeValue(self.time.Format("%c", wx.DateTime.CST))
+	wx.CallLater(1000, self.update_normal_force)	
     def update_panel(self,evt):
         try:
             self.panel.updateFlag = True  
