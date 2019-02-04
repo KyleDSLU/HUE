@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+
+<launch>
+    <arg name="ir_frame" default="true"/>
+    <arg name="ir_frame_unless" default="true" unless="$(arg ir_frame)"/>
+    
+    <node if="$(arg ir_frame)" required="true" name="ir_corrector" 
+        pkg="ir_correction" type="ir_corrector.py" output="screen">
+        <param name="ir_flag" value="True"/>
+    </node>
+
+    <node if="$(arg ir_frame_unless)" required="true" name="ir_corrector" 
+        pkg="ir_correction" type="ir_corrector.py" output="screen">
+        <param name="ir_flag" value="False"/>
+    </node>
+
+    <node name="start_page" pkg="ws_generator" type="start.py" output="screen"/>
+</launch>
+

@@ -24,7 +24,7 @@ class Frame(demo_utils.DemoFrame):
         self.master_force_pub.publish(b)
         self.master_actuation_pub.publish(b)
 
-        self.REFRESH_RATE = 15
+        self.REFRESH_RATE = 50
         self.SCREEN_LENGTH = 15
         self.BALL_VELOCITY = 10     #cm/s
         demo_utils.DemoFrame.__init__(self, self.BALL_VELOCITY, self.REFRESH_RATE, self.SCREEN_LENGTH)

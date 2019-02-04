@@ -1,49 +1,50 @@
 #! /usr/bin/env python
-import wx
-import os
-import rospy
-
 import random
 import time
 
-from ws_generator.msg import ForceArray, WSArray
+import wx
+import os
+
+import rospy
+import rospkg
+from ws_generator.msg import WSArray, ForceArray
 from std_msgs.msg import String, Bool
 
 #Other GUI utilites
 import main
 import utils.start_utils as start_utils
 
+from utils.utils import Ball, Generate_WS, NormForcePanel, NormForceLabel, QuestionPanel
 
-class Frame(start_utils.GuiFrame):
+class Frame(wx.Frame):
     #----------------------------------------------------------------------
-    def __init__(self,csvfile):
+    def __init__(self):
         """"""
-        rospy.init_node('start_ws')
-        self.ws_ufm_pub = rospy.Publisher('/cursor_position/workspace/ufm', WSArray, queue_size = 0)
-        self.ws_ev_pub = rospy.Publisher('/cursor_position/workspace/ev', WSArray, queue_size = 0)
+        rospy.init_node('demo_ws')
+        self.ws_hybrid_pub = rospy.Publisher('/cursor_position/workspace/hybrid', WSArray, queue_size = 0)
         self.master_force_pub = rospy.Publisher('/hue_master/force', Bool, queue_size = 0)
         self.master_actuation_pub = rospy.Publisher('/hue_master/actuation', Bool, queue_size = 0)
-        self.force_sub = rospy.Subscriber('/cursor_position/force/force_list', ForceArray, self.force_callback, queue_size = 0)
+        self.force_sub = rospy.Subscriber('/cursor_position/force/force_list', ForceArray, self.force_callback, queue_size = 1)
 
-        self.REFRESH_RATE = 20
+        b = Bool()
+        b.data = True
+        self.master_force_pub.publish(b)
+        self.master_actuation_pub.publish(b)
+
+        self.REFRESH_RATE = 50
         self.SCREEN_LENGTH = 15
         self.BALL_VELOCITY = 10     #cm/s
-        start_utils.GuiFrame.__init__(self, self.BALL_VELOCITY, self.REFRESH_RATE, self.SCREEN_LENGTH)
 
-        self.CSVFILE = csvfile
+        self._layout(self.BALL_VELOCITY, self.REFRESH_RATE, self.SCREEN_LENGTH)
+        self.time = wx.DateTime.Now()
 
         # variables for the amount of times each testing condition is finished
         self.AMPLITUDE_COUNT = 0
-        self.TRESHOLD_COUNT = 0
-        self.TEXTURE_COUNT = 0
 
-        self.FINISH_FLAG = False
-
+        self.CORRECT = None
         self.THRESHOLD_FLIPS = 0   # variable to save the amount of times user has guessed wrong after guessing right
         self.SIG_THRESHOLDS = 1
         self.REP_INCORRECT = 0
-
-        self.CORRECT = None     #variable to save correctness of user's guess
 
         self.REPEAT_TESTS = 1   #variable to determine repeat of same tests
         self.TEST_CASE = 0      #variable to iterate through tests of each testing condition
@@ -57,39 +58,16 @@ class Frame(start_utils.GuiFrame):
 
         self.test_conditions = None
 
-        self.determine_next_test()
-        self.determine_next_condition()
-
         # Generate Gui
         self.Centre()
         self.Show()
 
-    def option(self,event,selected):
-        #print a message to confirm if the user is happy with the option selected
-        string = ''.join(["You have selected ",str(selected), "). Continue?"])
-        message = wx.MessageDialog(self,string,"Confirmation",wx.YES_NO)
-        result = message.ShowModal()
-        # If User agrees with selection, save relevant user data to csvfile
-        if result == wx.ID_YES: #OVERWRITE CORRECT GUESS
-            if self.ws_output[0][1] > 0.85:
-                self.CORRECT = False
-                self.THRESHOLD_FLIPS += 1
-            else:
-                self.CORRECT = True
-
-            #self.determine_correctness(selected)
-            self.end_time = time.time()
-            self.elapsed_time = self.end_time - self.start_time
-            self.save_data()
-            self.determine_next_condition()
-
     def determine_next_test(self):
         # start hybridization test
         if self.AMPLITUDE_COUNT < self.REPEAT_TESTS:
-            self.hybridization_set()
+            self.amplitude_set()
             self.tc = self.test_conditions[0]
             self.AMPLITUDE_COUNT += 1
-
         else:
             f = main.frameMain(None)
             self.Close()
@@ -102,20 +80,18 @@ class Frame(start_utils.GuiFrame):
                 if self.tc[0] == 'AMPLITUDE_TEST':
                     self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
                                       1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
-                elif self.tc[0] == 'FREQUENCY_TEST':
-                    self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
-                                      1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
-
             if self.CORRECT == True:
                 # increase amplitude of test condition to make test harder
                 self.ws_output[0][1] += self.DELTA_AMPLITUDE
+
             elif self.CORRECT == False:
                 # decrease amplitude of test condition to make test easier
                 self.ws_output[0][1] = min(self.AMPLITUDE_MIN,self.ws_output[0][1]-2*self.DELTA_AMPLITUDE)
 
             self.randomize_output()
             self.define_correct_selection()
-            intensity, y_ws = self.panel.generate_ws(self.rand_output)
+            print(self.rand_output)
+            intensity, y_ws = self.generate_workspace(self.rand_output)
             self.publish_intensity(intensity,y_ws)
 
         else:
@@ -131,53 +107,16 @@ class Frame(start_utils.GuiFrame):
             try:
                 self.tc = self.test_conditions[self.TEST_CASE]
                 self.determine_next_condition()
-
             except KeyError as e:
                 # Fall in here if self.test_conditions is empty
                 self.TEST_CASE = 0
                 self.determine_next_test()
 
-    def publish_intensity(self,intensity,y_ws):
-        ufm_msg = WSArray()
-        ufm_msg.header.stamp = rospy.Time(0.0)
-        ufm_msg.y_step = 2
-        ufm_msg.y_ws = y_ws[0] + y_ws[1]
-        ufm_msg.intensity = intensity[0] + intensity[2]
-
-        ev_msg = WSArray()
-        ev_msg.header.stamp = rospy.Time(0.0)
-        ev_msg.y_step = 2
-        ev_msg.y_ws = y_ws[0] + y_ws[1]
-        ev_msg.intensity = intensity[1] + intensity[3]
-
-        self.ws_ufm_pub.publish(ufm_msg)
-        self.ws_ev_pub.publish(ev_msg)
-
-    def publish_master_status(self, force_status, actuation_status):
-        b = Bool()
-        b.data = force_status
-        self.master_force_pub.publish(b)
-        b.data = actuation_status
-        self.master_actuation_pub.publish(b)
-
-    def force_callback(self,force_array):
-        self.tanforce_publish = [force_array.tanforce_1,force_array.tanforce_2]
-        self.normforce_publish = [force_array.normforce_1,force_array.normforce_2]
-        self.int_list = [force_array.intensity_1,force_array.intensity_2]
-
-
     def amplitude_set(self):
         # construct conditions in the form of, test#: test_id, test_actuation, control_actuation, texture, freq
-        self.test_conditions = {0:['AMPLITUDE_TEST',"Hybrid","EV","Sinusoid",5], \
-                                1:['AMPLITUDE_TEST',"Hybrid","UFM","Sinusoid",5], \
-                                2:['AMPLITUDE_TEST',"UFM","Hybrid","Sinusoid",5], \
-                                3:['AMPLITUDE_TEST',"EV","Hybrid","Sinusoid",5]}
-
-    def frequency_set(self):
-        self.test_conditions = {0:['FREQUENCY_TEST',"Hybrid","Hybrid","Sinusoid",5], \
-                                1:['FREQUENCY_TEST',"Hybrid","Hybrid","Sinusoid",5], \
-                                2:['FREQUENCY_TEST',"UFM","Hybrid","Sinusoid",5], \
-                                3:['FREQUENCY_TEST',"EV","Hybrid","Sinusoid",5]}
+        self.test_conditions = {0:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",2], \
+                                1:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",5], \
+                                2:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",10]}
 
     def randomize_output(self):
         # randomize channel 0 and 1
@@ -208,27 +147,200 @@ class Frame(start_utils.GuiFrame):
 
             self.REP_INCORRECT += 1
 
-    def save_data(self):
-        with open(self.CSVFILE, 'a') as fout:
-            l = [self.CORRECT, self.elapsed_time]
-            l.extend(self.ws_output[0])
-            l.extend(self.ws_output[1])
-            l.extend(self.tanforce_publish[0])
-            l.extend(self.tanforce_publish[1])
-            l.extend(self.x_list)
-            l = [str(i) for i in l]
-            s = ','.join(l) + '\n'
-            fout.write(s)
-            fout.close()
+    def force_callback(self, force_array):
+        pass
 
     def close(self):
+        self.Close()
+        f = main.frameMain(None)
+        f.show()
+
+    ###########################################################################################################
+
+    def update_panel(self,evt):
+        try:
+            self.panel.updateFlag = True  
+        except AttributeError:
+            pass 
+            #catching error if panel attribute does not exist i
+
+    def on_back_button(self,event):
+        #checks if the panel needs updated after the frame dropdowns have covered it
         f = main.frameMain(None)
         self.Close()
-        f.show()
+        f.Show()
+
+    def on_submit_button(self, event):
+        self.submit_button.Disable() 
+
+        self.determine_next_test()
+        self.determine_next_condition()
+
+    def checkSelect(self, evt):
+        #checks to see if all selections have been made before submit button is enabled
+        if not ((self.frequency.GetValue() == '') or (self.texture.GetValue() == '') or (self.Amplitude_hybrid.GetValue() == '')):
+            self.submit_button.Enable()            
+
+    def widgetMaker(self, widget, objects):
+        #helps with makeing combobox lists
+        for obj in objects:
+            widget.Append(obj.shape, obj)
+
+    def on_close(self, event):
+        self.timer.Stop()
+        self.Destroy()
+
+    def on_timer(self, event):
+        self.panel.update_drawing()
+
+    def generate_workspace(self, ws):
+        ws_compress = 2
+        intensity, y_ws = Generate_WS(self.panel, ws, ws_compress)
+        # Account for sizers above demo panel
+        y_ws += (self.HEIGHT - self.panel.HEIGHT)
+
+        hybrid_msg = WSArray()
+        hybrid_msg.header.stamp = rospy.Time(0.0)
+        hybrid_msg.y_step = len(y_ws)
+        hybrid_msg.y_ws = y_ws.flatten().tolist()
+        hybrid_msg.int_compress = ws_compress
+        hybrid_msg.intensity = intensity.flatten().tolist()
+
+        #sends values once submit button is pressed
+        self.ws_hybrid_pub.publish(hybrid_msg)
+
+    def _layout(self, velocity, refresh, length):
+        wx.Frame.__init__(self, parent = None, id = wx.ID_ANY, title = "Haptic Demo", size = wx.GetDisplaySize(), style = wx.SYSTEM_MENU)
+        WIDTH, HEIGHT = self.GetClientSize()
+        #Save parameters for later calculations
+        self.HEIGHT = HEIGHT
+        self.WIDTH = WIDTH
+
+        FONTSCALING = 0.01
+        ICONSCALING = 0.01
+        COMBOSCALING = ICONSCALING*1.1
+        HORIZSPACERSIZE = 4
+        VERTSPACERMULT = HEIGHT*0.01
+
+        LEFTTEXTSPACING = int(WIDTH*0.008)
+        BUTTONTEXTSPACING = int(WIDTH*0.007)
+        COMBOTEXTSPACING = int(WIDTH*0.0135)
+
+        NORM_FORCE_DESIRED = 100
+        NORM_FORCE_THRESHOLD = 20
+        button_size = wx.Size(int(HEIGHT*0.01), WIDTH*0.05)
+
+        icon_size = WIDTH*ICONSCALING
+        combo_size = WIDTH*COMBOSCALING
+        sampleList = []
+
+        vbuffer_sizer = wx.BoxSizer(wx.HORIZONTAL)  
+        tool_sizer = wx.BoxSizer(wx.VERTICAL)
+        text_sizer = wx.BoxSizer(wx.HORIZONTAL)  
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        norm_label_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        norm_force_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        
+        # initialize rospack path manager
+        self.rospack = rospkg.RosPack()
+        path = self.rospack.get_path('ws_generator')
+        path = os.path.join(path, 'src/utils/ref/')
+
+        # backbutton image 
+        image_file = os.path.join(path,"340.png")
+        png = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
+        png = wx.Image(image_file)
+        png = png.Scale(icon_size, icon_size, wx.IMAGE_QUALITY_HIGH)
+        result = wx.BitmapFromImage(png)
+        back_button = wx.BitmapButton(self, 1, result, size = button_size)
+        
+        # submit image 
+        image_file = os.path.join(path,"submitBtn.png")
+        png = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
+        png = wx.Image(image_file)
+        png = png.Scale(icon_size, icon_size, wx.IMAGE_QUALITY_HIGH)
+        
+        result = wx.BitmapFromImage(png)
+        self.submit_button = wx.BitmapButton(self, 1, result, size = button_size)
+
+        # 1 and 2 Buttons
+        button_1 = wx.Button(self, wx.ID_ANY, '1', size = button_size)
+        button_2 = wx.Button(self, wx.ID_ANY, '2', size = button_size)
+       
+        # vertical spacer workaround for screen cover 
+        s = " " 
+        spacer_buffer_top = wx.StaticText(self, 1, s)
+        font = wx.Font(VERTSPACERMULT, wx.ROMAN, wx.NORMAL, wx.NORMAL)
+        spacer_buffer_top.SetFont(font)
+        vbuffer_sizer.Add(spacer_buffer_top, 1, 0, 0)
+
+        # Horizontal spacer workaround for screen cover 
+        s = " " * HORIZSPACERSIZE 
+        spacer_buffer_left = wx.StaticText(self, 1, s)
+        spacer_buffer_right = wx.StaticText(self, 1, s)       
+        s = " " * int(HORIZSPACERSIZE/3)
+        spacer_buffer_middle = wx.StaticText(self, 1, s)
+
+        #Add Buttons and comboboxes
+        button_sizer.Add(spacer_buffer_left,1,0,0)
+        button_sizer.Add(back_button, 1, 0, 0) 
+        button_sizer.Add(self.submit_button, 1, 0, 0) 
+        button_sizer.Add(spacer_buffer_middle, 1, 0, 0)
+        button_sizer.Add(button_1, 1, 0, 0)
+        button_sizer.Add(button_2, 1, 0, 0)
+        button_sizer.Add(spacer_buffer_right, 1, 0, 0)
+        
+        #Setup font
+        font = wx.Font(HEIGHT*FONTSCALING, wx.ROMAN, wx.NORMAL, wx.NORMAL)
+
+        #Setup back and submit buttons
+        back_button.Bind(wx.EVT_BUTTON, self.on_back_button) 
+        self.submit_button.Bind(wx.EVT_BUTTON, self.on_submit_button) 
+         
+        #Add sizers to overall sizer
+        tool_sizer.Add(vbuffer_sizer, 0, wx.EXPAND)
+        tool_sizer.Add(button_sizer, 0, wx.EXPAND)
+        tool_sizer.Add(text_sizer, 0, wx.EXPAND)
+
+        #Add sizer for normal force and question
+        overall_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        vsizer = wx.BoxSizer(wx.VERTICAL)
+        hsizer = wx.BoxSizer(wx.HORIZONTAL)
+        norm_force_label = NormForceLabel(self, HEIGHT*FONTSCALING)
+        norm_force_panel = NormForcePanel(self, HEIGHT*FONTSCALING, NORM_FORCE_DESIRED, NORM_FORCE_THRESHOLD)
+        question_panel = QuestionPanel(self, HEIGHT*FONTSCALING)
+        vsizer.Add(norm_force_label,0, wx.EXPAND)
+        vsizer.Add(norm_force_panel, 0, wx.EXPAND)
+
+        hsizer.Add(spacer_buffer_left, 1, wx.LEFT)
+        hsizer.Add(question_panel, 1, wx.EXPAND)
+        hsizer.Add(spacer_buffer_middle, 1, wx.EXPAND)
+        hsizer.Add(vsizer, 1, wx.EXPAND)
+        hsizer.Add(spacer_buffer_right, 1, wx.RIGHT)
+        overall_sizer.Add(hsizer, 1, wx.EXPAND)
+        tool_sizer.Add(overall_sizer, 1, wx.EXPAND)
+
+        #Create Ball sizer
+        self.panel = start_utils.DemoPanel(self, velocity, refresh, length)
+        tool_sizer.Add(self.panel, 10, wx.EXPAND) 
+
+        #adds the sizers to section of text, buttons, and panel display 
+        self.SetSizer(tool_sizer)
+        tool_sizer.Layout() 
+
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+
+        #Create a timer to handle gui update
+        self.Bind(wx.EVT_TIMER, self.on_timer)
+        self.timer = wx.Timer(self)
+        self.timer.Start(refresh)
+
+
+
 
 # Run the program
 if __name__ == "__main__":
     app = wx.App(False)
-    frame = Frame('./csvfiles/test.py')
+    frame = Frame()
     frame.Show()
     app.MainLoop()

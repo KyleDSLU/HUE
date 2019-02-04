@@ -2,14 +2,14 @@
 import os
 import time 
 import numpy as np 
-from ws_generator.msg import WSArray
+from ws_generator.msg import WSArray, IntArray
 import time
 import rospkg
 import rospy
 import wx
 import main
 
-from utils import Ball, Generate_WS
+from utils import Ball, Generate_WS, NormForcePanel, NormForceLabel
 
 class OptionList:
     def __init__(self, id, shape):
@@ -39,14 +39,20 @@ class DemoPanel(wx.Panel):
         self.BITMAP_FLAG = False
         self.updateFlag = False
         self.WAIT = 10
-
         self.on_size(0)
+
+        #create cursor position subscriber
+        self.ir_x = 0
+        self.ir_y = 0
+        self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
+
         self.update_drawing()
         wx.CallLater(200, self.SetFocus)
 
-
     def on_size(self, event):
         self.WIDTH, self.HEIGHT = self.GetClientSize()
+        self.CURSOR_OFFSET = self.parent.HEIGHT - self.HEIGHT
+
         self.WIDTH_HALF = self.WIDTH/2.0
         self.FIRST_RECTANGLE_Y = 0.4*self.HEIGHT
         self.BOTTOM_SPACE = 0.035*self.HEIGHT
@@ -81,8 +87,12 @@ class DemoPanel(wx.Panel):
 
         self.BALL_MOVEX = int(self.BALL_VELOCITY*self.REFRESH*self.WIDTH/(2450.*self.LENGTH))
 
-    def update_drawing(self):
-        self.on_update()
+    def update_drawing(self, *args):
+        self.on_update(self.ir_x, self.ir_y)
+
+    def cursor_callback(self, ir_xy):
+        self.ir_x = ir_xy.data[0]
+        self.ir_y = ir_xy.data[1] - self.CURSOR_OFFSET
 
     def on_paint(self, event):
         if self.updateFlag == True:
@@ -115,14 +125,13 @@ class DemoPanel(wx.Panel):
         elif self.WIDTH <= 20 and self.HEIGHT <= 20:
                self.BITMAP_FLAG = 0
 
-    def on_update(self):
+    def on_update(self, x, y):
         if self.BITMAP_FLAG:
-            x, y = self.ScreenToClient(wx.GetMousePosition())
             redraw_list = [False] * len(self.ball)
             pos_list = [None] * len(self.ball)
             for i,ball in enumerate(self.ball):
-                if ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS:
-                    if ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS:
+                if (ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS) and \
+                   (ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS):
                         self.wait_count[i] = 0
                         redraw_list[i] = True
                         pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
@@ -191,45 +200,11 @@ class DemoPanel(wx.Panel):
             img.SaveFile(path + 'demo_'+str(self.WIDTH)+'_'+str(self.HEIGHT)+'.png', wx.BITMAP_TYPE_PNG)
 
 
-    def on_select(self, event):
-        texture = self.textures.GetStringSelection()
-        Amplitude_EV = float(self.Amplitude_EV.GetStringSelection())/100
-        Amplitude_UFM = float(self.Amplitude_UFM.GetStringSelection())/100
-        Amplitude_H = float(self.Amplitude_H.GetStringSelection())/100
-        freq=(int(self.Frequency.GetValue()))
-
-        self.generate_workspace(texture,Amplitude_EV,Amplitude_UFM,Amplitude_H,freq)
-
-
-    def widgetMaker(self, widget, objects):
-        """"""
-        for obj in objects:
-            widget.Append(obj.shape, obj)
-        widget.Bind(wx.EVT_COMBOBOX, self.checking)
-
-    def checking(self, event):
-        if not (self.textures.GetStringSelection()=='' or self.Amplitude_EV.GetStringSelection()=='' or self.Amplitude_UFM.GetStringSelection()=='' or self.Amplitude_H.GetStringSelection()=='' or self.Frequency.GetValue()==''):
-            self.SubmitBtn.Enable()
-
-    def clearPanel(self):
-        #clears panel when frame combo boxes are rolled up.
-        self.odc.Clear()
-        redraw_list = [True] * len(self.ball)
-        pos_list = self.BALL_START
-        self.draw_balls(redraw_list, pos_list)
-
-
 class DemoFrame(wx.Frame):
     def __init__(self, velocity, refresh, length, *args, **kw):
         self._layout(velocity, refresh, length)
         self.time = wx.DateTime.Now()
-	#self.Bind(wx.EVT_TIMER, self.)
-	self.update_normal_force()
 
-    def update_normal_force(self, *args):
-	self.time = wx.DateTime.Now()
-	self.frequency.ChangeValue(self.time.Format("%c", wx.DateTime.CST))
-	wx.CallLater(1000, self.update_normal_force)	
     def update_panel(self,evt):
         try:
             self.panel.updateFlag = True  
@@ -263,6 +238,10 @@ class DemoFrame(wx.Frame):
     def _layout(self, velocity, refresh, length):
         wx.Frame.__init__(self, parent = None, id = wx.ID_ANY, title = "Haptic Demo", size = wx.GetDisplaySize(), style = wx.SYSTEM_MENU)
         WIDTH, HEIGHT = self.GetClientSize()
+
+        self.HEIGHT = HEIGHT
+        self.WIDTH = WIDTH
+
         FONTSCALING = 0.01
         ICONSCALING = 0.01
         COMBOSCALING = ICONSCALING*1.1
@@ -274,6 +253,9 @@ class DemoFrame(wx.Frame):
         COMBOTEXTSPACING = int(WIDTH*0.0135)
         TEXTOFFSETS = [0,0,0,3,2]
 
+        NORM_FORCE_DESIRED = 100
+        NORM_FORCE_THRESHOLD = 20
+
         icon_size = WIDTH*ICONSCALING
         combo_size = WIDTH*COMBOSCALING
         sampleList = []
@@ -282,6 +264,8 @@ class DemoFrame(wx.Frame):
         tool_sizer = wx.BoxSizer(wx.VERTICAL)
         text_sizer = wx.BoxSizer(wx.HORIZONTAL)  
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        norm_label_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        norm_force_sizer = wx.BoxSizer(wx.HORIZONTAL)
         
         # initialize rospack path manager
         self.rospack = rospkg.RosPack()
@@ -357,6 +341,7 @@ class DemoFrame(wx.Frame):
         spacer_buffer_left = wx.StaticText(self, 1, s)
         spacer_buffer_right = wx.StaticText(self, 1, s)       
 
+        #Add Buttons and comboboxes
         button_sizer.Add(spacer_buffer_left,1,0,0)
         button_sizer.Add(back_button, 1, 0, 0) 
         button_sizer.Add(self.frequency, 2) 
@@ -365,28 +350,26 @@ class DemoFrame(wx.Frame):
         button_sizer.Add(self.submit_button, 1, 0, 0) 
         button_sizer.Add(spacer_buffer_right, 1, 0, 0)
         
+        #Setup font
+        font = wx.Font(HEIGHT*FONTSCALING, wx.ROMAN, wx.NORMAL, wx.NORMAL)
+
+        #Create button/cb labels
+        #blank space is workaround for screen cover 
         s = " " * (LEFTTEXTSPACING + TEXTOFFSETS[0]) + "Back"
         s += " " * (BUTTONTEXTSPACING - len("Back") + TEXTOFFSETS[1]) + "Frequency"
         s += " " * (COMBOTEXTSPACING - len("Frequency") + TEXTOFFSETS[2]) + "Texture"
         s += " " * (COMBOTEXTSPACING - len("Texture") + TEXTOFFSETS[3]) + "Hybrid"
         s += " " * (COMBOTEXTSPACING - len("Hybrid") + TEXTOFFSETS[4]) + "Submit"
         labels = wx.StaticText(self, 1, s) 
-        
-        font = wx.Font(HEIGHT*FONTSCALING, wx.ROMAN, wx.NORMAL, wx.NORMAL)
-         
-        #blank space is workaround for screen cover 
         labels.SetFont(font) 
+        text_sizer.Add(labels, 1) 
         
+        #Set combobox font
         self.frequency.SetFont(font) 
         self.texture.SetFont(font) 
         self.Amplitude_hybrid.SetFont(font) 
 
-        text_sizer.Add(labels, 1) 
-        
-        self.Bind(wx.EVT_CLOSE, self.on_close)
-        self.Bind(wx.EVT_TIMER, self.on_timer)
-        self.panel = DemoPanel(self, velocity, refresh, length)
-
+        #Setup comboboxes
         self.frequency.Bind(wx.EVT_TEXT, self.checkSelect)
         self.texture.Bind(wx.EVT_TEXT, self.checkSelect)
         self.Amplitude_hybrid.Bind(wx.EVT_TEXT, self.checkSelect)
@@ -395,23 +378,35 @@ class DemoFrame(wx.Frame):
         self.texture.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
         self.Amplitude_hybrid.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
          
+        #Setup back and submit buttons
         back_button.Bind(wx.EVT_BUTTON, self.on_back_button) 
         self.submit_button.Bind(wx.EVT_BUTTON, self.generate_workspace) 
          
-        tool_sizer.Add(vbuffer_sizer,0,wx.EXPAND)
-        tool_sizer.Add(button_sizer,0,wx.EXPAND)
-        tool_sizer.Add(text_sizer,0,wx.EXPAND)
-        tool_sizer.Add(self.panel,10,wx.EXPAND) 
+        #Add sizers to overall sizer
+        tool_sizer.Add(vbuffer_sizer, 0, wx.EXPAND)
+        tool_sizer.Add(button_sizer, 0, wx.EXPAND)
+        tool_sizer.Add(text_sizer, 0, wx.EXPAND)
 
-        #adds the sizers to a sizer to section of text, buttons, and panel display 
+        #Add sizer for normal force
+        
+        norm_force_label = NormForceLabel(self, HEIGHT*FONTSCALING)
+        tool_sizer.Add(norm_force_label,0, wx.EXPAND)
+        norm_force_panel = NormForcePanel(self, HEIGHT*FONTSCALING, NORM_FORCE_DESIRED, NORM_FORCE_THRESHOLD)
+        tool_sizer.Add(norm_force_panel, 0, wx.EXPAND)
+
+        #Create Ball sizer
+        self.panel = DemoPanel(self, velocity, refresh, length)
+        tool_sizer.Add(self.panel, 10, wx.EXPAND) 
+
+        #adds the sizers to section of text, buttons, and panel display 
         self.SetSizer(tool_sizer)
          
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.Bind(wx.EVT_TIMER, self.on_timer)
+
         tool_sizer.Layout() 
         self.timer = wx.Timer(self)
         self.timer.Start(refresh)
-
-        self.HEIGHT = HEIGHT
-        self.WIDTH = WIDTH
 
     def generate_workspace(self, evt):
         ws = {0: ["Hybrid", self.Amplitude_hybrid.GetValue(), self.texture.GetValue(), self.frequency.GetValue()]}

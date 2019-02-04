@@ -1,143 +1,215 @@
 #! /usr/bin/env python
 import os
+import time 
+import numpy as np 
+from ws_generator.msg import WSArray, IntArray
 import time
-import numpy as np
-
+import rospkg
+import rospy
 import wx
+import main
 
-from utils import Ball, Generate_WS
+from utils import Ball, Generate_WS, NormForcePanel, NormForceLabel
 
-class GuiPanel(wx.Panel):
+class OptionList:
+    def __init__(self, id, shape):
+        """Constructor"""
+        self.id = id
+        self.shape = shape
+
+class DemoPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):
         wx.Panel.__init__(self, parent)
+        self.overlay = wx.Overlay()
         self.parent = parent
-        self.ball = [[],[]]
-        self.last_pos = self.ScreenToClient(wx.GetMousePosition())
-        #self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
-        #self.SetBackgroundColour("BLACK")
 
-        self._background
-        self._layout
+        self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
+        self.SetBackgroundColour("BLACK")
+
+        self.rospack = parent.rospack
+        self.last_pos = self.ScreenToClient(wx.GetMousePosition())
+
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.REFRESH = refresh
         self.LENGTH = length
         self.BALL_VELOCITY = velocity
+        self.screenDC = wx.ScreenDC()
 
-        self.WAIT = 10
-        self.wait_count = [0]*len(self.ball)
-
+        self.BITMAP_FLAG = False
+        self.updateFlag = False
         self.on_size(0)
 
+        # Setup subscriber for cursor position, will run on_update for callback
+        self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
+        
         wx.CallLater(200, self.SetFocus)
 
     def on_size(self, event):
         self.WIDTH, self.HEIGHT = self.GetClientSize()
+        self.CURSOR_OFFSET = self.parent.HEIGHT - self.HEIGHT
         self.WIDTH_HALF = self.WIDTH/2.0
-        self.FIRST_RECTANGLE_Y = 0.1*self.HEIGHT
+        self.FIRST_RECTANGLE_Y = 0.15*self.HEIGHT
         self.BOTTOM_SPACE = 0.035*self.HEIGHT
 
-        self.RECTANGLE_SIZE = 0.175*self.HEIGHT
-        self.RECTANGLE_SEPERATION = int((self.HEIGHT-self.FIRST_RECTANGLE_Y-self.BOTTOM_SPACE-3*self.RECTANGLE_SIZE)/3.0)
+        self.RECTANGLE_SIZE = .25*self.HEIGHT
+        self.RECTANGLES = 1
+        self.RECTANGLE_SEPERATION = int((self.HEIGHT-self.FIRST_RECTANGLE_Y-self.BOTTOM_SPACE-self.RECTANGLES*self.RECTANGLE_SIZE)/3.0)
 
         #set up textbox and lines
-        self.TEXTBOX_WIDTH = 0
+        self.TEXTBOX_WIDTH = 0.05*self.WIDTH
         self.TEXTBOX_X = 0.04*self.WIDTH
         self.TEXTBOX_XOFFSET = 0.80*self.WIDTH
         self.TEXTBOX_Y = self.RECTANGLE_SIZE*0.35
-        self.RECTANGLE_COLOR = "WHITE"
-        self.TEXTBOX_FONTSIZE = max(1,int(42*((self.WIDTH*self.HEIGHT)/(1794816.))))
+        self.RECTANGLE_COLOR = "GREY"
+        self.TEXTBOX_FONTSIZE = max(1,int(10*((self.WIDTH*self.HEIGHT)/(1794816.))))
+        self.TEXTBOX_COLOR = "WHITE"
 
-        self.HAPTIC_WIDTH = self.WIDTH
+        self.HAPTIC_WIDTH = self.WIDTH - self.TEXTBOX_WIDTH
 
         self.BALL_RADIUS = int(self.RECTANGLE_SIZE/2*1.1)
         self.BALL_YOFFSET = -0.0125*self.HEIGHT
-        self.BALL_MARGIN = self.BALL_RADIUS*1.2
-        self.BALL_START = [[self.BALL_MARGIN,int(self.FIRST_RECTANGLE_Y+self.BALL_RADIUS+self.BALL_YOFFSET)],[self.BALL_MARGIN,int(self.FIRST_RECTANGLE_Y+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION+self.BALL_RADIUS+self.BALL_YOFFSET)]]
-        # self._buffer = wx.Bitmap(self.WIDTH, self.HEIGHT)
+        self.BALL_LEFTMARGIN = 0.95*self.BALL_RADIUS+self.TEXTBOX_WIDTH
+        self.BALL_RIGHTMARGIN = self.WIDTH-2.0*self.BALL_RADIUS
+        self.WAIT = 15   # Parameter to set for ball wait before reset
+
+        self.ball = [[],[]]
+        self.wait_count = [0]*len(self.ball)
+        first_ball_start = int(self.FIRST_RECTANGLE_Y+self.BALL_RADIUS+self.BALL_YOFFSET)
+        second_ball_start = int(first_ball_start+self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
+        self.BALL_START = [[self.BALL_LEFTMARGIN,first_ball_start],[self.BALL_LEFTMARGIN,second_ball_start]]#,[self.BALL_LEFTMARGIN,third_ball_start]]
+
         for i in range(len(self.ball)):
-            self.ball[i] = Ball(self.BALL_START[i],self.BALL_RADIUS,self.WIDTH-self.BALL_MARGIN)
+            self.ball[i] = Ball(self.BALL_START[i],self.BALL_RADIUS,self.BALL_RIGHTMARGIN)
 
         self.BALL_MOVEX = int(self.BALL_VELOCITY*self.REFRESH*self.WIDTH/(2450.*self.LENGTH))
-        self.ws_gen = ws_generator(self) 
 
-    def update_drawing(self):
-        self.Refresh(True)
+    def update_drawing(self, *args):
+        self.on_update(self.ir_x, self.ir_y)
 
-    #go back
-    def back_button(self,event):
-        self.Close()
-        self.parent.close()
+    def cursor_callback(self, ir_xy):
+        self.ir_x = ir_xy.data[0]
+        self.ir_y = ir_xy.data[1] - self.CURSOR_OFFSET
 
     def on_paint(self, event):
-        x, y = self.ScreenToClient(wx.GetMousePosition())
+        if self.updateFlag == True:
+            self.updateFlag = False
+            self.clearPanel()
 
-    def generate_ws(self,ws):
-        return self.ws_gen.generate_ws(ws)
+        if self.WIDTH > 20 and self.HEIGHT > 20:
+            if not self.BITMAP_FLAG:
+                path = self.rospack.get_path('ws_generator')
+                path = os.path.join(path, 'src/utils/ref/')
+                dc = wx.PaintDC(self)
+                dc.Clear()
 
-    def _background(self, evt, dc):
-        """set up the device for painting"""
-        dc.SetFont(wx.Font(self.TEXTBOX_FONTSIZE, wx.ROMAN, wx.FONTSTYLE_NORMAL, wx.NORMAL))
+                # Import Bitmap
+                self.import_bitmap(dc, path)
+                self.BITMAP_FLAG = 1
 
-        """Rectangle 1"""
-        RECTANGLE_Y = self.FIRST_RECTANGLE_Y
-        dc.SetPen(wx.Pen(self.RECTANGLE_COLOR))
-        dc.SetBrush(wx.Brush(self.RECTANGLE_COLOR))
-        dc.DrawRectangle(0,RECTANGLE_Y, self.WIDTH, self.RECTANGLE_SIZE)
-        textbox = wx.Rect(self.TEXTBOX_X+self.TEXTBOX_XOFFSET, RECTANGLE_Y+self.TEXTBOX_Y)
-        dc.DrawLabel("(1)", textbox, alignment=1)
+                # Draw Bitmap and setup overlay
+                dc.DrawBitmap(self.bmp, 0, 0)
+                self.overlay = wx.Overlay()
+                self.odc = wx.DCOverlay(self.overlay, dc)
+                self.odc.Clear()
+                del dc
 
-        """Rectangle 2"""
-        RECTANGLE_Y = self.FIRST_RECTANGLE_Y+(self.RECTANGLE_SIZE+self.RECTANGLE_SEPERATION)
-        dc.DrawRectangle(0,RECTANGLE_Y, self.WIDTH, self.RECTANGLE_SIZE)
-        textbox = wx.Rect(self.TEXTBOX_X+self.TEXTBOX_XOFFSET, RECTANGLE_Y+self.TEXTBOX_Y)
-        dc.DrawLabel("(2)", textbox, alignment=0)
+                # Draw Balls for first time
+                redraw_list = [True] * len(self.ball)
+                pos_list = self.BALL_START
+                self.draw_balls(redraw_list, pos_list)
 
-    def _layout(self):#set up buttons and texts
+        elif self.WIDTH <= 20 and self.HEIGHT <= 20:
+               self.BITMAP_FLAG = 0
+
+    def on_update(self, x, y):
+        if self.BITMAP_FLAG:
+            x, y = self.ScreenToClient(wx.GetMousePosition())
+            redraw_list = [False] * len(self.ball)
+            pos_list = [None] * len(self.ball)
+            for i,ball in enumerate(self.ball):
+                if (ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS and x < self.BALL_RIGHTMARGIN and \
+                    ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS):
+                        self.wait_count[i] = 0
+                        redraw_list[i] = True
+                        pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
+                        break
+                elif ball.x > self.BALL_START[i][0]:
+                    if self.wait_count[i] < self.WAIT:
+                        self.wait_count[i] += 1
+                        break
+                    else:
+                        self.wait_count[i] = 0
+                        redraw_list = [True] * len(self.ball)
+                        pos_list = self.BALL_START
+
+            if any(redraw_list):
+                self.draw_balls(redraw_list, pos_list)
+
+    def draw_balls(self, redraw_list, pos_list):
+        dc = wx.ClientDC(self)
+        self.odc.Clear()
+
+        for i,redraw in enumerate(redraw_list):
+            if redraw:
+                self.ball[i].move_ball(dc, pos_list[i])
+
+    def import_bitmap(self, dc, path):
+        img  = path + 'start_'+str(self.WIDTH)+'_'+str(self.HEIGHT)+'.png'
         try:
-            if self.tc[0] == 1:
-                gui_question = "Which Texture Felt Stronger?"
+            del self.bmp
+            del self.bitmap
         except:
-            gui_question = ''
+            pass
 
-        back_button = wx.Button(self,wx.ID_ANY,'BACK')
-        label = wx.StaticText(self,wx.ID_ANY,label=gui_question,pos=(0,.7*self.HEIGHT))
-        label.SetFont(wx.Font(self.TEXTBOX_FONTSIZE,wx.ROMAN,wx.NORMAL,wx.BOLD))
-        button_1 = wx.Button(self,wx.ID_ANY, '1',pos=(0,self.HEIGHT*.8),size=(self.WIDTH_HALF,.2*self.HEIGHT))
-        button_2 = wx.Button(self,wx.ID_ANY, '2',pos=(self.WIDTH_HALF,self.HEIGHT*.8),size=(self.WIDTH_HALF,.2*self.HEIGHT))
+        if not os.path.exists(img):
+            self.generate_png(dc, path)
 
-        #set up font
-        button_1.SetFont(wx.Font(self.TEXTBOX_FONTSIZE,wx.ROMAN,wx.NORMAL,wx.BOLD))
-        button_2.SetFont(wx.Font(self.TEXTBOX_FONTSIZE,wx.ROMAN,wx.NORMAL,wx.BOLD))
+        self.bmp = wx.Image(img, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
+        self.BITMAP_FLAG = True
 
-        ##connect buttons to functions
-        back_button.Bind(wx.EVT_BUTTON,self.back_button)
-        #add arguments when connecting buttons to functions using lambda
-        button_1.Bind(wx.EVT_BUTTON,lambda evt: self.option(evt,1))
-        button_2.Bind(wx.EVT_BUTTON,lambda evt: self.option(evt,2))
-        #self.on_paint(0)#draw again
+    def generate_png(self, dc, path):
+        if self.WIDTH > 20 and self.HEIGHT > 20:
+            """set up the device for painting"""
+            picture = wx.Bitmap(path + 'haptics_symp.png')
+            width,height = picture.GetSize()
+            dc.BeginDrawing()
 
-class GuiFrame(wx.Frame):
-    def __init__(self, velocity, refresh, length, *args, **kw):
-        wx.Frame.__init__(self, parent = None, id = wx.ID_ANY, title = wx.EmptyString, size = wx.GetDisplaySize(), style = wx.SYSTEM_MENU)
+            dc.DrawBitmap(picture,(self.WIDTH-width)/2,(self.HEIGHT-height)/2,True)
+            dc.SetFont(wx.Font(self.TEXTBOX_FONTSIZE, wx.ROMAN, wx.FONTSTYLE_NORMAL, wx.NORMAL))
+            """First Rectangle"""
+            rectangle_y = self.FIRST_RECTANGLE_Y
+            dc.SetPen(wx.Pen(self.RECTANGLE_COLOR))
+            dc.SetBrush(wx.Brush(self.RECTANGLE_COLOR))
+            # set x, y, w, h for rectangle
+            dc.DrawRectangle(0, rectangle_y, self.WIDTH, self.RECTANGLE_SIZE)
 
-        self.Bind(wx.EVT_CLOSE, self.on_close)
-        self.Bind(wx.EVT_TIMER, self.on_timer)
+            """Second Rectangle"""
+            rectangle_y = self.FIRST_RECTANGLE_Y + self.RECTANGLE_SEPERATION + self.RECTANGLE_SIZE
+            dc.SetPen(wx.Pen(self.RECTANGLE_COLOR))
+            dc.SetBrush(wx.Brush(self.RECTANGLE_COLOR))
+            # set x, y, w, h for rectangle
+            dc.DrawRectangle(0, rectangle_y, self.WIDTH, self.RECTANGLE_SIZE)
 
-        self.panel = GuiPanel(self, velocity, refresh, length)
-        self.timer = wx.Timer(self)
-        self.timer.Start(refresh)
+            bmp = wx.EmptyBitmap(self.WIDTH, self.HEIGHT)
+            memDC = wx.MemoryDC()
+            memDC.SelectObject(bmp)
+            memDC.Blit(0 ,0,self.WIDTH, self.HEIGHT, dc, 0,0)
+            memDC.SelectObject(wx.NullBitmap)
+            img = bmp.ConvertToImage()
 
-    def on_close(self, event):
-        self.timer.Stop()
-        self.Destroy()
+            img.SaveFile(path + 'start_'+str(self.WIDTH)+'_'+str(self.HEIGHT)+'.png', wx.BITMAP_TYPE_PNG)
 
-    def on_timer(self, event):
-        self.panel.update_drawing()
+    def clearPanel(self):
+        #clears panel when frame combo boxes are rolled up.
+        self.odc.Clear()
+        redraw_list = [True] * len(self.ball)
+        pos_list = self.BALL_START
+        self.draw_balls(redraw_list, pos_list)
 
 if __name__ == '__main__':
     app = wx.App(False)
-    frame = GuiFrame(10,20,15)
+    frame = DemoFrame(velocity=5, refresh=10, length=19)
     frame.Show(True)
     app.MainLoop()
 

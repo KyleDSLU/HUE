@@ -19,12 +19,20 @@ class IR_Controller():
         self.raw_pub = rospy.Publisher('/cursor_position/raw', IntArray, queue_size=1)
         self.rate = 10
 
-        self._xscale = 1.08
-        self._yscale = 1.3115
-        self._xoffset = -5
-        self._yoffset = 0
+        self.IR_FLAG = rospy.get_param('~ir_flag')
+        
+        if self.IR_FLAG:
+            self._xscale = 1.08
+            self._yscale = 1.3115
+            self._xoffset = -5
+            self._yoffset = 0
+        else:
+            self._xscale = 1.0
+            self._yscale = 1.0
+            self._xoffset = 0
+            self._yoffset = 0
 
-        self._xmax,self._ymax = pyautogui.size()
+        self._xmax, self._ymax = pyautogui.size()
 
         self.last_position = self.raw_position = list(pyautogui.position())
 
@@ -36,8 +44,8 @@ class IR_Controller():
     def callback(self):
         self.raw_position = list(pyautogui.position())
 
-        if (self.raw_position != self.last_position):
-            self.cursor_correction()
+        #if (self.raw_position != self.last_position):
+        self.cursor_correction()
 
     def cursor_correction(self):
         self.raw_position_msg = IntArray()
@@ -52,8 +60,6 @@ class IR_Controller():
         self.corrected_position_msg.data = self.raw_position
 
         self.cursor_pub.publish(self.corrected_position_msg)
-
-        #pyautogui.moveTo(self.corrected_position[0], self.corrected_position[1])
 
         self.last_position = self.corrected_position
 
