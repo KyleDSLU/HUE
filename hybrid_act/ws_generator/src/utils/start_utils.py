@@ -2,20 +2,15 @@
 import os
 import time 
 import numpy as np 
-from ws_generator.msg import WSArray, IntArray
-import time
+import wx
+
+from ws_generator.msg import WSArray, IntArray, ForceChannel
+from std_msgs.msg import Bool
 import rospkg
 import rospy
-import wx
 import main
 
 from utils import Ball, Generate_WS, NormForcePanel, NormForceLabel
-
-class OptionList:
-    def __init__(self, id, shape):
-        """Constructor"""
-        self.id = id
-        self.shape = shape
 
 class DemoPanel(wx.Panel):
     def __init__(self, parent, velocity, refresh, length):
@@ -37,9 +32,19 @@ class DemoPanel(wx.Panel):
         self.screenDC = wx.ScreenDC()
 
         self.BITMAP_FLAG = False
+        self.OVERRIDE = False
         self.updateFlag = False
         self.on_size(0)
 
+        self.force_channel = [ForceChannel(), ForceChannel()]
+        self.force_channel[0].channels = 2
+        self.force_channel[0].measure_channel = 0
+        self.force_channel[1].channels = 2
+        self.force_channel[1].measure_channel = 1
+
+        self.forcechannel_pub = rospy.Publisher('/force_recording/force_channel', ForceChannel, queue_size = 0)
+        self.master_force_pub = rospy.Publisher('/hue_master/force', Bool, queue_size = 0)
+        self.master_actuation_pub = rospy.Publisher('/hue_master/actuation', Bool, queue_size = 0)
         # Setup subscriber for cursor position, will run on_update for callback
         self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
         
@@ -91,7 +96,12 @@ class DemoPanel(wx.Panel):
         self.ir_x = ir_xy.data[0]
         self.ir_y = ir_xy.data[1] - self.CURSOR_OFFSET
 
-    def on_paint(self, event):
+    def override_on_paint(self):
+        self.OVERRIDE = True
+        self.on_paint()
+        self.OVERRIDE = False
+
+    def on_paint(self, *args):
         if self.updateFlag == True:
             self.updateFlag = False
             self.clearPanel()
@@ -122,18 +132,31 @@ class DemoPanel(wx.Panel):
         elif self.WIDTH <= 20 and self.HEIGHT <= 20:
                self.BITMAP_FLAG = 0
 
+        if self.OVERRIDE:
+            self.odc.Clear()
+
+            # Draw Balls again
+            redraw_list = [True] * len(self.ball)
+            pos_list = self.BALL_START
+            self.draw_balls(redraw_list, pos_list)
+            
     def on_update(self, x, y):
         if self.BITMAP_FLAG:
             x, y = self.ScreenToClient(wx.GetMousePosition())
             redraw_list = [False] * len(self.ball)
             pos_list = [None] * len(self.ball)
             for i,ball in enumerate(self.ball):
-                if (ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS and x < self.BALL_RIGHTMARGIN and \
-                    ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS):
-                        self.wait_count[i] = 0
-                        redraw_list[i] = True
-                        pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
-                        break
+                ball_point_distance = ((ball.x-x)**2 + (ball.y-y)**2)**(1/2.)
+                if ball_point_distance < self.BALL_RADIUS and ball.x < self.BALL_RIGHTMARGIN:
+                    if ball.x == self.BALL_LEFTMARGIN:
+                        self.master_actuation_pub.publish(True)
+                        self.master_force_pub.publish(True)
+                        self.forcechannel_pub.publish(self.force_channel[i])
+
+                    self.wait_count[i] = 0
+                    redraw_list[i] = True
+                    pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
+                    break
                 elif ball.x > self.BALL_START[i][0]:
                     if self.wait_count[i] < self.WAIT:
                         self.wait_count[i] += 1
@@ -142,6 +165,8 @@ class DemoPanel(wx.Panel):
                         self.wait_count[i] = 0
                         redraw_list = [True] * len(self.ball)
                         pos_list = self.BALL_START
+                        self.master_actuation_pub.publish(False)
+                        self.master_force_pub.publish(False)
 
             if any(redraw_list):
                 self.draw_balls(redraw_list, pos_list)

@@ -4,11 +4,12 @@ import time
 
 import wx
 import os
+import copy
 
 import rospy
 import rospkg
-from ws_generator.msg import WSArray, ForceArray
-from std_msgs.msg import String, Bool
+from ws_generator.msg import WSArray, ForceArray, ForceChannel
+from std_msgs.msg import String
 
 #Other GUI utilites
 import main
@@ -18,36 +19,27 @@ from utils.utils import Ball, Generate_WS, NormForcePanel, NormForceLabel, Quest
 
 class Frame(wx.Frame):
     #----------------------------------------------------------------------
-    def __init__(self):
+    def __init__(self, csvfile):
         """"""
+        self.CSVFILE = csvfile
+        self.SEPERATION_CHAR = -999
+
         rospy.init_node('demo_ws')
         self.ws_hybrid_pub = rospy.Publisher('/cursor_position/workspace/hybrid', WSArray, queue_size = 0)
-        self.master_force_pub = rospy.Publisher('/hue_master/force', Bool, queue_size = 0)
-        self.master_actuation_pub = rospy.Publisher('/hue_master/actuation', Bool, queue_size = 0)
-        self.force_sub = rospy.Subscriber('/cursor_position/force/force_list', ForceArray, self.force_callback, queue_size = 1)
-
-        b = Bool()
-        b.data = True
-        self.master_force_pub.publish(b)
-        self.master_actuation_pub.publish(b)
+        self.question_pub = rospy.Publisher('/user_study/question', String, queue_size = 0)
+        self.force_sub = rospy.Subscriber('/force_recording/force_records', ForceArray, self.force_callback, queue_size = 1)
 
         self.REFRESH_RATE = 50
         self.SCREEN_LENGTH = 15
         self.BALL_VELOCITY = 10     #cm/s
 
         self._layout(self.BALL_VELOCITY, self.REFRESH_RATE, self.SCREEN_LENGTH)
-        self.time = wx.DateTime.Now()
 
         # variables for the amount of times each testing condition is finished
         self.AMPLITUDE_COUNT = 0
 
-        self.CORRECT = None
-        self.THRESHOLD_FLIPS = 0   # variable to save the amount of times user has guessed wrong after guessing right
-        self.SIG_THRESHOLDS = 1
-        self.REP_INCORRECT = 0
-
+        self.SIG_THRESHOLDS = 1  #variable to determine amount of times user must flip around the threshold
         self.REPEAT_TESTS = 1   #variable to determine repeat of same tests
-        self.TEST_CASE = 0      #variable to iterate through tests of each testing condition
 
         self.AMPLITUDE_MAX = 1.0
         self.AMPLITUDE_MIN = 0.75
@@ -62,16 +54,35 @@ class Frame(wx.Frame):
         self.Centre()
         self.Show()
 
+        # Start Testing
+        time.sleep(0.5)
+        self.publish_question("Click the Green Checkmark to Begin")
+
+    def start_testing(self):
+        self.FINISH_FLAG = False
+        self.CORRECT = None
+        self.THRESHOLD_FLIPS = 0   # variable to save the amount of times user has guessed wrong after guessing right
+        self.REP_INCORRECT = 0     # variable to save the amount of times user has guessed wrong after repeatedly guessing wrong
+        self.TEST_CASE = 0      #variable to iterate through tests of each testing condition
+
+        self.lengths = [0,0]
+        self.tan_force = []
+        self.norm_force = []
+        self.x_positions = []
+        self.intensity = []
+
+        self.determine_next_test()
+        self.determine_next_condition()
+
     def determine_next_test(self):
         # start hybridization test
+        self.publish_question("Which Bar Feels Stronger?")
         if self.AMPLITUDE_COUNT < self.REPEAT_TESTS:
             self.amplitude_set()
             self.tc = self.test_conditions[0]
             self.AMPLITUDE_COUNT += 1
         else:
-            f = main.frameMain(None)
-            self.Close()
-            f.Show()
+            self.close()
 
     def determine_next_condition(self):
         if self.THRESHOLD_FLIPS < self.SIG_THRESHOLDS or self.FINISH_FLAG:
@@ -90,9 +101,8 @@ class Frame(wx.Frame):
 
             self.randomize_output()
             self.define_correct_selection()
-            print(self.rand_output)
-            intensity, y_ws = self.generate_workspace(self.rand_output)
-            self.publish_intensity(intensity,y_ws)
+            self.generate_workspace(self.rand_output, 2)
+            self.start_time = time.time()
 
         else:
             # reset Threshold flips
@@ -134,26 +144,111 @@ class Frame(wx.Frame):
 
     def define_correctness(self,selected):
         if selected == self.correct_selection:
-            if not self.CORRECT:
-                self.CORRECT = True
+            self.CORRECT = True
             if self.ws_output[0][1] >= self.AMPLITUDE_MAX:
                 self.FINISH_FLAG = True
-
             self.REP_INCORRECT = 0
+
         else:
             if self.CORRECT:
                 self.THRESHOLD_FLIPS += 1
                 self.CORRECT = False
+                self.REP_INCORRECT += 1
 
-            self.REP_INCORRECT += 1
+            elif self.REP_INCORRECT > self.INCORRECT_THRESHOLD:
+                self.FINISH_FLAG = True
+                self.CORRECT = False
+                self.REP_INCORRECT = 0
+
+            else:
+                self.REP_INCORRECT += 1
 
     def force_callback(self, force_array):
-        pass
+        self.lengths = force_array.lengths
+        self.tan_force = force_array.tan_force
+        self.norm_force = force_array.norm_force
+        self.x_positions = force_array.x_positions
+        self.intensity = force_array.intensity
+        print("here", self.lengths)
+
+    def option(self,event,selected):
+        #print a message to confirm if the user is happy with the option selected
+        string = ''.join(["You have selected ",str(selected), "). Continue?"])
+        message = wx.MessageDialog(self,string,"Confirmation",wx.YES_NO)
+        result = message.ShowModal()
+        # If User agrees with selection, save relevant user data to csvfile
+        if result == wx.ID_YES: 
+            #OVERWRITE CORRECT GUESS
+            if self.ws_output[0][1] > 0.85:
+                self.CORRECT = False
+                self.THRESHOLD_FLIPS += 1
+            else:
+                self.CORRECT = True
+
+            #self.determine_correctness(selected)
+            self.end_time = time.time()
+            self.elapsed_time = self.end_time - self.start_time
+            self.save_data()
+            self.determine_next_condition()
+
+        self.panel.override_on_paint()
 
     def close(self):
+        self.panel.ir_sub.unregister()
         self.Close()
         f = main.frameMain(None)
-        f.show()
+        f.Show()
+
+    def publish_question(self, question):
+        s = String()
+        s.data = question
+        self.question_pub.publish(question)
+
+    def save_data(self):
+        with open(self.CSVFILE, 'a') as fout:
+            l = [self.CORRECT, self.elapsed_time]
+            output_dict = copy.deepcopy(self.rand_output)
+            output = self.convert_output_to_key(output_dict.values())
+            for channel in output:
+                for value in channel:
+                    l.append(value)
+                l.append(self.SEPERATION_CHAR)
+
+            index = 0
+            for length in self.lengths:
+                l.extend(self.tan_force[index:length+index])
+                l.append(self.SEPERATION_CHAR)
+                l.extend(self.norm_force[index:length+index])
+                l.append(self.SEPERATION_CHAR)
+                l.extend(self.intensity[index:length+index])
+                l.append(self.SEPERATION_CHAR)
+                index = length
+
+            l = [str(i) for i in l]
+            s = ','.join(l) + "\n"
+            print(s)
+            fout.write(s)
+            fout.close()
+
+    def convert_output_to_key(self, values_input):
+        true_false_dict = {True: 1, False:0}
+        test_dict = {"AMPLITUDE": 0, "FREQUENCY": 1, "TEXTURE": 2}
+        output_dict = {"Hybrid": 0}
+        texture_dict = {"Sinusoid": 0, "Square": 1, "Triangular": 2}
+
+        for i,l in enumerate(values_input):
+            for j,key in enumerate(l):
+                if key in true_false_dict.keys():
+                    values_input[i][j] = true_false_dict[key]
+                elif key in test_dict.keys():
+                    values_input[i][j] = test_dict[key]
+                elif key in output_dict.keys():
+                    values_input[i][j] = output_dict[key]
+                elif key in texture_dict.keys():
+                    values_input[i][j] = texture_dict[key]
+
+        return values_input
+
 
     ###########################################################################################################
 
@@ -165,16 +260,13 @@ class Frame(wx.Frame):
             #catching error if panel attribute does not exist i
 
     def on_back_button(self,event):
-        #checks if the panel needs updated after the frame dropdowns have covered it
-        f = main.frameMain(None)
-        self.Close()
-        f.Show()
+        self.close()
 
     def on_submit_button(self, event):
         self.submit_button.Disable() 
-
-        self.determine_next_test()
-        self.determine_next_condition()
+        self.button_1.Enable()
+        self.button_2.Enable()
+        self.start_testing()
 
     def checkSelect(self, evt):
         #checks to see if all selections have been made before submit button is enabled
@@ -193,8 +285,7 @@ class Frame(wx.Frame):
     def on_timer(self, event):
         self.panel.update_drawing()
 
-    def generate_workspace(self, ws):
-        ws_compress = 2
+    def generate_workspace(self, ws, ws_compress):
         intensity, y_ws = Generate_WS(self.panel, ws, ws_compress)
         # Account for sizers above demo panel
         y_ws += (self.HEIGHT - self.panel.HEIGHT)
@@ -264,8 +355,12 @@ class Frame(wx.Frame):
         self.submit_button = wx.BitmapButton(self, 1, result, size = button_size)
 
         # 1 and 2 Buttons
-        button_1 = wx.Button(self, wx.ID_ANY, '1', size = button_size)
-        button_2 = wx.Button(self, wx.ID_ANY, '2', size = button_size)
+        self.button_1 = wx.Button(self, wx.ID_ANY, '1', size = button_size)
+        self.button_2 = wx.Button(self, wx.ID_ANY, '2', size = button_size)
+        self.button_1.Bind(wx.EVT_BUTTON,lambda evt: self.option(evt,1))
+        self.button_2.Bind(wx.EVT_BUTTON,lambda evt: self.option(evt,2))
+        self.button_1.Disable()
+        self.button_2.Disable()
        
         # vertical spacer workaround for screen cover 
         s = " " 
@@ -286,8 +381,8 @@ class Frame(wx.Frame):
         button_sizer.Add(back_button, 1, 0, 0) 
         button_sizer.Add(self.submit_button, 1, 0, 0) 
         button_sizer.Add(spacer_buffer_middle, 1, 0, 0)
-        button_sizer.Add(button_1, 1, 0, 0)
-        button_sizer.Add(button_2, 1, 0, 0)
+        button_sizer.Add(self.button_1, 1, 0, 0)
+        button_sizer.Add(self.button_2, 1, 0, 0)
         button_sizer.Add(spacer_buffer_right, 1, 0, 0)
         
         #Setup font

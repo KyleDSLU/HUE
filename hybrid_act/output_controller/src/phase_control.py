@@ -11,11 +11,9 @@ class Output_Controller(ArduinoController):
         rospy.init_node('output_control')
 
         self.haptic_name = rospy.get_param('~name')
-        self.freq_case = rospy.get_param('~freq_case')
         self.phase_case = rospy.get_param('~phase_case')
-        scale = rospy.get_param('~scale')
 
-        ArduinoController.__init__(self, port='/dev/ttyAMA0', baudrate = 115200)
+        ArduinoController.__init__(self, port='/dev/ttyACM0', baudrate = 115200)
 
         self.int_sub = rospy.Subscriber('/'+self.haptic_name+'/intensity/', Int8, self.int_callback, queue_size = 1)
 

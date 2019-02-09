@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+
+<launch>
+    <node name="ir_corrector" pkg="ir_correction" type="ir_corrector.py" output="screen">
+        <param name="ir_flag" value="True"/>
+    </node>
+</launch>
+

@@ -145,8 +145,6 @@ def Generate_WS(obj, ws, ws_div):
     HAPTIC_WIDTH = float(obj.HAPTIC_WIDTH)
     HORIZ_PIXELS = np.arange(HAPTIC_WIDTH)
 
-    #print(HAPTIC_WIDTH, HORIZ_PIXELS)
-
     # ws has form of channel: actuation, amplitude, texture, frequency
     for i,value in enumerate(ws.values()):
         actuation = value[0]
@@ -155,13 +153,13 @@ def Generate_WS(obj, ws, ws_div):
         frequency = value[3]
 
         if shape == "Sinusoid":
-            intensity[i][obj.WIDTH-obj.HAPTIC_WIDTH:] = amp/2.*np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*frequency*2*np.pi) + .5
+            intensity[i][int(obj.WIDTH-obj.HAPTIC_WIDTH):] = amp/2.*np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*frequency*2*np.pi) + .5
 
         elif shape  == "Square":
             sinusoid = np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*frequency*2*np.pi)
             ind = [np.where(sinusoid>=0)[0], np.where(sinusoid<0)[0]]
-            intensity[i][ind[0]+obj.TEXTBOX_WIDTH] = amp/2. + 0.5
-            intensity[i][ind[1]+obj.TEXTBOX_WIDTH] = 0.5 - amp/2.
+            intensity[i][int(ind[0]+obj.TEXTBOX_WIDTH)] = amp/2. + 0.5
+            intensity[i][int(ind[1]+obj.TEXTBOX_WIDTH)] = 0.5 - amp/2.
 
         elif shape == "Triangular":
             triangle = np.zeros(obj.HAPTIC_WIDTH)
@@ -173,7 +171,7 @@ def Generate_WS(obj, ws, ws_div):
                 else:
                     triangle[j] = min(amp/2.+0.5, triangle[j-1]+slope)
 
-            intensity[2*i][obj.WIDTH-obj.HAPTIC_WIDTH:] = triangle
+            intensity[i][int(obj.WIDTH-obj.HAPTIC_WIDTH):] = triangle
 
         elif shape == "Bump":
             center = (HAPTIC_WIDTH)/2

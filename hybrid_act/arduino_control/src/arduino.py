@@ -1,27 +1,42 @@
-#! /usr/bin.env python
+#! /usr/bin/env python
 import serial
 import time
 import struct
 import numpy as np
 
+import rospy
+from arduino_control.msg import UInt8Array
+
 class ArduinoController():
 
-    def __init__(self, port = None, baudrate = 57600, timeout = .25):
+    def __init__(self, timeout = .25):
+        rospy.init_node('arduino_control')
         self.ser = None
-        if port:
-            self.init_port(port,baudrate,timeout)
+        self.baudrate = rospy.get_param('~baudrate')
+        self.port = rospy.get_param('~port')
 
-    def send_receive(self,arduino_case,msg=None,encoding=None,incoming_msgsize=1):
+        self.msg_sub = rospy.Subscriber('/arduino/msgout', UInt8Array, self.msg_callback, queue_size = 3)
+        self.return_pub = rospy.Publisher('/arduino/return_msg', UInt8Array, queue_size = 0)
+        self.msg_out = UInt8Array()
+        self.serial_available = True
+
+        self.init_port(self.port,self.baudrate,timeout)
+
+        rospy.on_shutdown(self.close_port)
+        rospy.spin()
+
+    def msg_callback(self, bytearr):
         if self.ser:
-            packet = bytearray(struct.pack('B',arduino_case))
-            if msg:
-                packet += struct.pack(encoding,msg)
-
-            response = self.send_receive_arduino(packet, incoming_msgsize)
-            return response[1:]
-
-        else:
-            print ('Serial Communication not Established')
+            msg = bytearray(bytearr.data[:-1])
+            incoming_msgsize = struct.unpack('B', bytearr.data[-1])[0]
+            while not self.serial_available:
+                pass
+            self.serial_available = False
+            data = self.send_receive_arduino(msg, incoming_msgsize)
+            self.serial_available = True
+            if (len(data) > 0):
+                self.msg_out.data = tuple(bytearray(struct.pack('B', msg[0]) + data))
+                self.return_pub.publish(self.msg_out)
 
     def send_receive_arduino(self,packet,incoming_msgsize):
         checksum = sum(packet) & 0xFF
@@ -50,15 +65,17 @@ class ArduinoController():
                 time.sleep(0.001)
             else:
                 checksum_received = struct.unpack('B', data[0])[0]
-
-        return data
+        try:
+            return data[1:]
+        except:
+            return
 
     def init_port(self, port, baudrate, timeout = 0.25):
         if self.ser:
             self.ser.close()
         else:
             self.ser = serial.Serial(port = port, baudrate = baudrate, timeout = timeout)
-            time.sleep(2)
+            time.sleep(.5)
             count = 0
             while not self.ser.isOpen():
                 count += 1
@@ -76,5 +93,5 @@ class ArduinoController():
             self.ser.close()
 
 if ( __name__ == "__main__" ):
-    arduino = frequency_controller(port = '/dev/ttyARDUINO', baudrate = 57600)
+    arduino = ArduinoController()
 

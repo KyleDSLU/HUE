@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    IntArray.msg
    ForceArray.msg
+   ForceChannel.msg
    WSArray.msg
 )
 

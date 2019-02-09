@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+
+<launch>
+    <arg name="ir_frame" default="true"/>
+    
+    <include if="$(arg ir_frame)" 
+        file="$(find ir_correction)/launch/ir_frame_true.launch"/>
+
+    <include unless="$(arg ir_frame)" 
+        file="$(find ir_correction)/launch/ir_frame_false.launch"/>
+
+    <include file="$(find arduino_control)/launch/arduino.launch"/>
+    <include file="$(find output_controller)/launch/output.launch"/>
+    <include file="$(find haptic_generator)/launch/haptic.launch"/>
+    <include file="$(find ws_generator)/launch/user_study.launch"/>
+    
+</launch>
+

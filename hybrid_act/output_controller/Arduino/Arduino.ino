@@ -51,7 +51,7 @@ Adafruit_SI5351 clockgen = Adafruit_SI5351();
 
 //--------------------------------------------------------------------------------
 void setup() {
-  Serial.begin(57600);
+  Serial.begin(115200);
 
   pinMode(f0,INPUT);
   pinMode(f1,INPUT);
@@ -64,6 +64,7 @@ void setup() {
   {
     /* There was a problem detecting the IC ... check your connections */
     while(1);
+    Serial.println("Here");
   }
   /* FRACTIONAL MODE --> More flexible but introduce clock jitter */
   /* Setup PLLB to fractional mode (XTAL * 16) */

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(output_controller)
+project(arduino_control)
 
 find_package(catkin REQUIRED COMPONENTS
   message_generation
@@ -10,11 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
  add_message_files(
    FILES
-   IntArray.msg
-   ForceArray.msg
-   ForceChannel.msg
    UInt8Array.msg
-   WSArray.msg
  )
 
 ## Generate added messages and services with any dependencies listed here

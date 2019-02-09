@@ -1,13 +1,8 @@
 <?xml version="1.0"?>
 
 <launch>
-    <arg name="method" default="full"/>
-
-        <node name="hybrid_haptics" pkg="haptic_generator" type="haptic_control.py" output="screen">
-            <param name="name" value="hybrid"/>
-        </node>
-    </group>
-
-    <include file="$(find output_controller)/launch/output.launch" />
+    <node name="hybrid_haptics" pkg="haptic_generator" type="haptic_control.py" output="screen">
+        <param name="name" value="hybrid"/>
+    </node>
 </launch>
 

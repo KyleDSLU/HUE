@@ -17,7 +17,7 @@ class IR_Controller():
         rospy.init_node('cursor_control')
         self.cursor_pub = rospy.Publisher('/cursor_position/corrected', IntArray, queue_size=1)
         self.raw_pub = rospy.Publisher('/cursor_position/raw', IntArray, queue_size=1)
-        self.rate = 10
+        self.rate = 30
 
         self.IR_FLAG = rospy.get_param('~ir_flag')
         
