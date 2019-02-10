@@ -2,13 +2,13 @@
 import os
 import time 
 import numpy as np 
-from ws_generator.msg import WSArray, IntArray
+from ws_generator.msg import WSArray, IntArray, ForceChannel, ForceArray
 import time
 import rospkg
 import rospy
 import wx
 import main
-
+from std_msgs.msg import Bool
 from utils import Ball, Generate_WS, NormForcePanel, NormForceLabel
 
 class OptionList:
@@ -44,17 +44,28 @@ class DemoPanel(wx.Panel):
         #create cursor position subscriber
         self.ir_x = 0
         self.ir_y = 0
+        
+	self.update_drawing()
+        
         self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
+	
+        
+	self.force_channel = [ForceChannel()]
+        self.force_channel[0].channels = 1 
+        self.force_channel[0].measure_channel = 0
 
-        self.update_drawing()
-        wx.CallLater(200, self.SetFocus)
+        self.forcechannel_pub = rospy.Publisher('/force_recording/force_channel', ForceChannel, queue_size = 0)
+        self.master_force_pub = rospy.Publisher('/hue_master/force', Bool, queue_size = 0)
+        self.master_actuation_pub = rospy.Publisher('/hue_master/actuation', Bool, queue_size = 0)
+	
+	wx.CallLater(200, self.SetFocus)
 
     def on_size(self, event):
         self.WIDTH, self.HEIGHT = self.GetClientSize()
         self.CURSOR_OFFSET = self.parent.HEIGHT - self.HEIGHT
 
-        self.WIDTH_HALF = self.WIDTH/2.0
-        self.FIRST_RECTANGLE_Y = 0.4*self.HEIGHT
+        self.WIDTH_HALF = self.WIDTH/2.0 
+	self.FIRST_RECTANGLE_Y = 0.4*self.HEIGHT
         self.BOTTOM_SPACE = 0.035*self.HEIGHT
 
         self.RECTANGLE_SIZE = .25*self.HEIGHT
@@ -130,13 +141,18 @@ class DemoPanel(wx.Panel):
             redraw_list = [False] * len(self.ball)
             pos_list = [None] * len(self.ball)
             for i,ball in enumerate(self.ball):
-                if (ball.x - self.BALL_RADIUS <= x <= ball.x + self.BALL_RADIUS) and \
-                   (ball.y - self.BALL_RADIUS <= y <= ball.y + self.BALL_RADIUS):
-                        self.wait_count[i] = 0
-                        redraw_list[i] = True
-                        pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
-                        break
-                elif ball.x != self.BALL_START[i][0]:
+                ball_point_distance = ((ball.x-x)**2 + (ball.y-y)**2)**(1/2.)
+                if ball_point_distance < self.BALL_RADIUS and ball.x < self.BALL_RIGHTMARGIN:
+                    if ball.x == self.BALL_LEFTMARGIN:
+                        self.master_actuation_pub.publish(True)
+                        self.master_force_pub.publish(True)
+                        self.forcechannel_pub.publish(self.force_channel[i])
+
+                    self.wait_count[i] = 0
+                    redraw_list[i] = True
+                    pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
+                    break
+                elif ball.x > self.BALL_START[i][0]:
                     if self.wait_count[i] < self.WAIT:
                         self.wait_count[i] += 1
                         break
@@ -144,6 +160,8 @@ class DemoPanel(wx.Panel):
                         self.wait_count[i] = 0
                         redraw_list = [True] * len(self.ball)
                         pos_list = self.BALL_START
+                        self.master_actuation_pub.publish(False)
+                        self.master_force_pub.publish(False)
             if any(redraw_list):
                 self.draw_balls(redraw_list, pos_list)
 
@@ -204,7 +222,16 @@ class DemoFrame(wx.Frame):
     def __init__(self, velocity, refresh, length, *args, **kw):
         self._layout(velocity, refresh, length)
         self.time = wx.DateTime.Now()
+    	self.path = self.rospack.get_path('ws_generator') 
+        self.SEPERATION_CHAR = -999
+        self.lengths = [0,0]
+        self.tan_force = []
+        self.norm_force = []
+        self.x_positions = []
+        self.intensity = []
 
+        self.force_sub = rospy.Subscriber('/force_recording/force_records', ForceArray, self.force_callback, queue_size = 1)
+    
     def update_panel(self,evt):
         try:
             self.panel.updateFlag = True  
@@ -262,12 +289,24 @@ class DemoFrame(wx.Frame):
 
         vbuffer_sizer = wx.BoxSizer(wx.HORIZONTAL)  
         tool_sizer = wx.BoxSizer(wx.VERTICAL)
-        text_sizer = wx.BoxSizer(wx.HORIZONTAL)  
+       	text_norm_hsizer = wx.BoxSizer(wx.HORIZONTAL) 	
+       	norm_vsizer = wx.BoxSizer(wx.VERTICAL) 
+        csv_vsizer = wx.BoxSizer(wx.VERTICAL)	
+	text_sizer = wx.BoxSizer(wx.HORIZONTAL)  
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
         norm_label_sizer = wx.BoxSizer(wx.HORIZONTAL)
         norm_force_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        save_vsizer = wx.BoxSizer(wx.VERTICAL)	
+	        
+        # Horizontal spacer workaround for screen cover 
+        s = " " * HORIZSPACERSIZE 
+        spacer_buffer_left = wx.StaticText(self, 1, s)
+        spacer_buffer_right = wx.StaticText(self, 1, s)       
+        s = " " * int(HORIZSPACERSIZE/3)
+        spacer_buffer_middle1 = wx.StaticText(self, 1, s)
         
-        # initialize rospack path manager
+        spacer_buffer_middle2 = wx.StaticText(self, 1, s)
+	# initialize rospack path manager
         self.rospack = rospkg.RosPack()
         path = self.rospack.get_path('ws_generator')
         path = os.path.join(path, 'src/utils/ref/')
@@ -387,14 +426,46 @@ class DemoFrame(wx.Frame):
         tool_sizer.Add(button_sizer, 0, wx.EXPAND)
         tool_sizer.Add(text_sizer, 0, wx.EXPAND)
 
-        #Add sizer for normal force
+	#Add sizer for .csv name input
+	csv_name_label = wx.StaticText(self, id = -1, label = "csv file", style = wx.ALIGN_CENTER,  name = "csv file") 
+	
+	self.csv_text_box = wx.TextCtrl(self, size = (200,50)) 
+        csv_vsizer.Add(self.csv_text_box, 0, wx.EXPAND)
+	csv_vsizer.Add(csv_name_label, 0, wx.EXPAND) 
+	#Add sizer for normal force
         
         norm_force_label = NormForceLabel(self, HEIGHT*FONTSCALING)
-        tool_sizer.Add(norm_force_label,0, wx.EXPAND)
+        norm_vsizer.Add(norm_force_label, 0, wx.EXPAND)
         norm_force_panel = NormForcePanel(self, HEIGHT*FONTSCALING, NORM_FORCE_DESIRED, NORM_FORCE_THRESHOLD)
-        tool_sizer.Add(norm_force_panel, 0, wx.EXPAND)
+        norm_vsizer.Add(norm_force_panel, 0, wx.EXPAND)
+         		
 
-        #Create Ball sizer
+	#Add button sizer components
+		
+        button_size = wx.Size(int(HEIGHT*0.01), WIDTH*0.05)
+        save_button = wx.Button(self, wx.ID_ANY, 'SAVE', size = button_size)
+	
+        save_button.Bind(wx.EVT_BUTTON, self.on_save_button) 
+	#save_button_label = wx.StaticText(self, id = -1, label = "Save", style = wx.ALIGN_CENTER,  name = "Save") 
+	save_vsizer.Add(save_button, 0, wx.EXPAND)
+	#save_vsizer.Add(save_button_label, 0, wx.EXPAND)
+	
+	#Add components to hsizer 
+      
+        text_norm_hsizer.Add(spacer_buffer_left, 1, wx.LEFT)
+        text_norm_hsizer.Add(csv_vsizer, 1, wx.CENTER)	
+	text_norm_hsizer.Add(spacer_buffer_middle1, 1, wx.EXPAND)
+	text_norm_hsizer.Add(save_vsizer,1 ,wx.CENTER)
+	text_norm_hsizer.Add(spacer_buffer_middle2, 1, wx.EXPAND)
+        text_norm_hsizer.Add(norm_vsizer, 1, wx.EXPAND)
+        text_norm_hsizer.Add(spacer_buffer_right, 1, wx.RIGHT)
+	
+
+
+
+	tool_sizer.Add(text_norm_hsizer, 0) 
+	 
+	#Create Ball sizer
         self.panel = DemoPanel(self, velocity, refresh, length)
         tool_sizer.Add(self.panel, 10, wx.EXPAND) 
 
@@ -407,6 +478,35 @@ class DemoFrame(wx.Frame):
         tool_sizer.Layout() 
         self.timer = wx.Timer(self)
         self.timer.Start(refresh)
+    
+    def force_callback(self, force_array):
+        self.lengths = force_array.lengths
+        self.tan_force = force_array.tan_force
+        self.norm_force = force_array.norm_force
+        self.x_positions = force_array.x_positions
+        self.intensity = force_array.intensity
+        print("here", self.lengths)
+    
+    def on_save_button(self, *args):    	
+    	#save on the csv file the name of the user
+    	self.csvfile = self.path + '/src/csvfiles/' + self.csv_text_box.GetValue() + '.csv'
+	with open(self.csvfile, 'a+') as fout:
+            index = 0
+	    l = []
+            for length in self.lengths:
+                l.extend(self.tan_force[index:length+index])
+                l.append(self.SEPERATION_CHAR)
+                l.extend(self.norm_force[index:length+index])
+                l.append(self.SEPERATION_CHAR)
+                l.extend(self.intensity[index:length+index])
+                l.append(self.SEPERATION_CHAR)
+                index = length
+
+            l = [str(i) for i in l]
+            s = ','.join(l) + "\n"
+            print(s)
+            fout.write(s)
+            fout.close()
 
     def generate_workspace(self, evt):
         ws = {0: ["Hybrid", self.Amplitude_hybrid.GetValue(), self.texture.GetValue(), self.frequency.GetValue()]}
