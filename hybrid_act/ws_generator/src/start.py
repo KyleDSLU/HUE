@@ -97,7 +97,7 @@ class Frame(wx.Frame):
             self.FREQUENCY_COUNT += 1
 
         elif self.TEXTURE_COUNT < self.REPEAT_TESTS:
-            self.publish_question("Which Bar Feels More Blockier?")
+            self.publish_question("Which Bar Feels Blockier?")
             self.texture_set()
             self.tc = self.test_conditions[0]
             self.TEXTURE_COUNT += 1
