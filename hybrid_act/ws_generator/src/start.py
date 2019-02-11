@@ -37,12 +37,20 @@ class Frame(wx.Frame):
 
         # variables for the amount of times each testing condition is finished
         self.AMPLITUDE_COUNT = 0
+        self.FREQUENCY_COUNT = 0
+        self.TEXTURE_COUNT = 0
 
-        self.SIG_THRESHOLDS = 1  #variable to determine amount of times user must flip around the threshold
-        self.REPEAT_TESTS = 1   #variable to determine repeat of same tests
+        self.INCORRECT_THRESHOLD = 2 #variable to determine how many incorrect guesses are accepted in a row before moving on
+
+        self.SIG_THRESHOLDS = 3  #variable to determine amount of times user must flip around the threshold
+        self.REPEAT_TESTS = 2   #variable to determine repeat of same tests
 
         self.AMPLITUDE_MAX = 1.0
         self.AMPLITUDE_MIN = 0.75
+
+        self.FREQUENCY_AMPLITUDE_MIN = 0.75
+        self.TEXTURE_AMPLITUDE_MIN = 0.75
+
         self.DELTA_AMPLITUDE = 0.05
 
         self.ws_output = None
@@ -76,30 +84,86 @@ class Frame(wx.Frame):
 
     def determine_next_test(self):
         # start hybridization test
-        self.publish_question("Which Bar Feels Stronger?")
         if self.AMPLITUDE_COUNT < self.REPEAT_TESTS:
+            self.publish_question("Which Bar Feels Stronger?")
             self.amplitude_set()
             self.tc = self.test_conditions[0]
             self.AMPLITUDE_COUNT += 1
+
+        elif self.FREQUENCY_COUNT < self.REPEAT_TESTS:
+            self.publish_question("Which Bar Has More Bumps?")
+            self.frequency_set()
+            self.tc = self.test_conditions[0]
+            self.FREQUENCY_COUNT += 1
+
+        elif self.TEXTURE_COUNT < self.REPEAT_TESTS:
+            self.publish_question("Which Bar Feels More Blockier?")
+            self.texture_set()
+            self.tc = self.test_conditions[0]
+            self.TEXTURE_COUNT += 1
+
         else:
             self.close()
+            return True
+
+        return False
+
+
 
     def determine_next_condition(self):
-        if self.THRESHOLD_FLIPS < self.SIG_THRESHOLDS or self.FINISH_FLAG:
+        if self.THRESHOLD_FLIPS < self.SIG_THRESHOLDS and not self.FINISH_FLAG:
             if not self.ws_output:
+                # TC has the form of: test_id, test_actuation, control_actuation, texture, freq
                 # Construct output in the form of, channel: actuation, amplitude, texture, frequency
                 if self.tc[0] == 'AMPLITUDE_TEST':
                     self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MIN, self.tc[3], self.tc[4]], \
                                       1: [self.tc[2], 1.0, self.tc[3], self.tc[4]]}
+                # TC has form of, test#: test_id, actuation, texture, higher_freq, lower_freq
+                # Construct output in the form of, channel: actuation, amplitude, texture, frequency
+                if self.tc[0] == 'FREQUENCY_TEST':
+                    self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MAX, self.tc[2], self.tc[3]], \
+                                      1: [self.tc[1], self.AMPLITUDE_MAX, self.tc[2], self.tc[4]]}
+
+                # TC has form of, test#: test_id, actuation, frequency, wrong_teture, correct_texture 
+                # Construct output in the form of, channel: actuation, amplitude, texture, frequency
+                if self.tc[0] == 'TEXTURE_TEST':
+                    self.ws_output = {0: [self.tc[1], self.AMPLITUDE_MAX, self.tc[3], self.tc[2]], \
+                                      1: [self.tc[1], self.AMPLITUDE_MAX, self.tc[4], self.tc[2]]}
+
             if self.CORRECT == True:
-                # increase amplitude of test condition to make test harder
-                self.ws_output[0][1] += self.DELTA_AMPLITUDE
+                if self.tc[0] == "AMPLITUDE_TEST":
+                    # increase amplitude of test condition to make test harder
+                    self.ws_output[0][1] += self.DELTA_AMPLITUDE
+
+                elif self.tc[0] == "FREQUENCY_TEST":
+                    # Dectrease amplitude of both conditions to make test harder
+                    self.ws_output[0][1] -= self.DELTA_AMPLITUDE
+                    self.ws_output[1][1] -= self.DELTA_AMPLITUDE
+
+                elif self.tc[0] == "TEXTURE_TEST":
+                    # Dectrease amplitude of both conditions to make test harder
+                    self.ws_output[0][1] -= self.DELTA_AMPLITUDE
+                    self.ws_output[1][1] -= self.DELTA_AMPLITUDE
 
             elif self.CORRECT == False:
-                # decrease amplitude of test condition to make test easier
-                self.ws_output[0][1] = min(self.AMPLITUDE_MIN,self.ws_output[0][1]-2*self.DELTA_AMPLITUDE)
+                if self.tc[0] == "AMPLITUDE_TEST":
+                    # decrease amplitude of test condition to make test easier
+                    self.ws_output[0][1] = max(self.AMPLITUDE_MIN,self.ws_output[0][1]-2*self.DELTA_AMPLITUDE)
 
-            self.randomize_output()
+                elif self.tc[0] == "FREQUENCY_TEST":
+                    # increase amplitude of test condition to make test easier
+                    self.ws_output[0][1] = min(self.AMPLITUDE_MAX,self.ws_output[0][1]+2*self.DELTA_AMPLITUDE)
+                    self.ws_output[1][1] = min(self.AMPLITUDE_MAX,self.ws_output[0][1]+2*self.DELTA_AMPLITUDE)
+
+                elif self.tc[0] == "TEXTURE_TEST":
+                    # increase amplitude of test condition to make test easier
+                    self.ws_output[0][1] = min(self.AMPLITUDE_MAX,self.ws_output[0][1]+2*self.DELTA_AMPLITUDE)
+                    self.ws_output[1][1] = min(self.AMPLITUDE_MAX,self.ws_output[0][1]+2*self.DELTA_AMPLITUDE)
+
+            #self.randomize_output()
+            self.rand_output = {}
+            self.rand_output[0] = self.ws_output[0]
+            self.rand_output[1] = self.ws_output[1]
             self.define_correct_selection()
             self.generate_workspace(self.rand_output, 2)
             self.start_time = time.time()
@@ -120,13 +184,25 @@ class Frame(wx.Frame):
             except KeyError as e:
                 # Fall in here if self.test_conditions is empty
                 self.TEST_CASE = 0
-                self.determine_next_test()
+                finish = self.determine_next_test()
+                if not finish:
+                    self.determine_next_condition()
 
     def amplitude_set(self):
         # construct conditions in the form of, test#: test_id, test_actuation, control_actuation, texture, freq
         self.test_conditions = {0:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",2], \
                                 1:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",5], \
                                 2:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",10]}
+
+    def frequency_set(self):
+        # construct conditions in the form of, test#: test_id, actuation, texture, higher_freq, lower_freq
+        self.test_conditions = {0:['FREQUENCY_TEST',"Hybrid","Sinusoid",4,2], \
+                                1:['FREQUENCY_TEST',"Hybrid","Sinusoid",8,4]}
+
+    def texture_set(self):
+        # construct conditions in the form of, test#: test_id, actuation, frequency, wrong_teture, correct_texture 
+        self.test_conditions = {0:['TEXTURE_TEST',"Hybrid",5,"Sinusoid","Square"], \
+                                1:['TEXTURE_TEST',"Hybrid",5,"Triangular","Square"]}
 
     def randomize_output(self):
         # randomize channel 0 and 1
@@ -137,59 +213,76 @@ class Frame(wx.Frame):
 
     def define_correct_selection(self):
         # determine which output channel is the correct choice
-        if self.rand_output[0][1] == self.tc[1]:
-            self.correct_selection = 0
-        else:
-            self.correct_selection = 1
+        if self.tc[0] == "AMPLITUDE_TEST":
+            if self.rand_output[0][1] == self.ws_output[1][1]:
+                self.correct_selection = 0
+            else:
+                self.correct_selection = 1
 
-    def define_correctness(self,selected):
+        elif self.tc[0] == "FREQUENCY_TEST":
+            if self.rand_output[0][3] == self.ws_output[1][3]:
+                self.correct_selection = 0
+            else:
+                self.correct_selection = 1
+
+        elif self.tc[0] == "TEXTURE_TEST":
+            if self.rand_output[0][2] == self.ws_output[1][2]:
+                self.correct_selection = 0
+            else:
+                self.correct_selection = 1
+
+    def determine_correctness(self,selected):
         if selected == self.correct_selection:
             self.CORRECT = True
-            if self.ws_output[0][1] >= self.AMPLITUDE_MAX:
-                self.FINISH_FLAG = True
+            if self.tc[0] == "AMPLITUDE_TEST":
+                if self.ws_output[0][1] >= self.AMPLITUDE_MAX-self.DELTA_AMPLITUDE:
+                    self.FINISH_FLAG = True
+
+            elif self.tc[0] == "FREQUENCY_TEST":
+                if self.ws_output[0][1] <= self.FREQUENCY_AMPLITUDE_MIN:
+                    self.FINISH_FLAG = True
+
+            elif self.tc[0] == "TEXTURE_TEST":
+                if self.ws_output[0][1] <= self.TEXTURE_AMPLITUDE_MIN:
+                    self.FINISH_FLAG = True
+
             self.REP_INCORRECT = 0
 
         else:
             if self.CORRECT:
                 self.THRESHOLD_FLIPS += 1
-                self.CORRECT = False
                 self.REP_INCORRECT += 1
 
-            elif self.REP_INCORRECT > self.INCORRECT_THRESHOLD:
+            elif self.REP_INCORRECT >= self.INCORRECT_THRESHOLD:
                 self.FINISH_FLAG = True
-                self.CORRECT = False
                 self.REP_INCORRECT = 0
 
             else:
                 self.REP_INCORRECT += 1
+            
+            self.CORRECT = False
 
-    def force_callback(self, force_array):
+    def force_callback(self, force_array): 
         self.lengths = force_array.lengths
         self.tan_force = force_array.tan_force
         self.norm_force = force_array.norm_force
         self.x_positions = force_array.x_positions
         self.intensity = force_array.intensity
-        print("here", self.lengths)
 
     def option(self,event,selected):
         #print a message to confirm if the user is happy with the option selected
-        string = ''.join(["You have selected ",str(selected), "). Continue?"])
-        message = wx.MessageDialog(self,string,"Confirmation",wx.YES_NO)
-        result = message.ShowModal()
+        #string = ''.join(["You have selected ",str(selected), "). Continue?"])
+        #message = wx.MessageDialog(self,string,"Confirmation",wx.YES_NO)
+        #result = message.ShowModal()
         # If User agrees with selection, save relevant user data to csvfile
-        if result == wx.ID_YES: 
-            #OVERWRITE CORRECT GUESS
-            if self.ws_output[0][1] > 0.85:
-                self.CORRECT = False
-                self.THRESHOLD_FLIPS += 1
-            else:
-                self.CORRECT = True
 
-            #self.determine_correctness(selected)
-            self.end_time = time.time()
-            self.elapsed_time = self.end_time - self.start_time
-            self.save_data()
-            self.determine_next_condition()
+        # zero index selected value
+        selected -= 1
+        self.determine_correctness(selected)
+        self.end_time = time.time()
+        self.elapsed_time = self.end_time - self.start_time
+        self.save_data()
+        self.determine_next_condition()
 
         self.panel.override_on_paint()
 
@@ -220,15 +313,22 @@ class Frame(wx.Frame):
                 l.append(self.SEPERATION_CHAR)
                 l.extend(self.norm_force[index:length+index])
                 l.append(self.SEPERATION_CHAR)
+                l.extend(self.x_positions[index:length+index])
+                l.append(self.SEPERATION_CHAR)
                 l.extend(self.intensity[index:length+index])
                 l.append(self.SEPERATION_CHAR)
                 index = length
 
             l = [str(i) for i in l]
             s = ','.join(l) + "\n"
-            print(s)
             fout.write(s)
             fout.close()
+
+        self.lengths = [0,0]
+        self.tan_force = []
+        self.norm_force = []
+        self.x_positions = []
+        self.intensity = []
 
     def convert_output_to_key(self, values_input):
         true_false_dict = {True: 1, False:0}
@@ -288,7 +388,7 @@ class Frame(wx.Frame):
     def generate_workspace(self, ws, ws_compress):
         intensity, y_ws = Generate_WS(self.panel, ws, ws_compress)
         # Account for sizers above demo panel
-        y_ws += (self.HEIGHT - self.panel.HEIGHT)
+        y_ws += int(self.HEIGHT - self.panel.HEIGHT)
 
         hybrid_msg = WSArray()
         hybrid_msg.header.stamp = rospy.Time(0.0)
@@ -317,7 +417,7 @@ class Frame(wx.Frame):
         BUTTONTEXTSPACING = int(WIDTH*0.007)
         COMBOTEXTSPACING = int(WIDTH*0.0135)
 
-        NORM_FORCE_DESIRED = 100
+        NORM_FORCE_DESIRED = 10
         NORM_FORCE_THRESHOLD = 20
         button_size = wx.Size(int(HEIGHT*0.01), WIDTH*0.05)
 
@@ -429,7 +529,6 @@ class Frame(wx.Frame):
         self.Bind(wx.EVT_TIMER, self.on_timer)
         self.timer = wx.Timer(self)
         self.timer.Start(refresh)
-
 
 
 

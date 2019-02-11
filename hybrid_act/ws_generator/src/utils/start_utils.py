@@ -142,7 +142,6 @@ class DemoPanel(wx.Panel):
             
     def on_update(self, x, y):
         if self.BITMAP_FLAG:
-            x, y = self.ScreenToClient(wx.GetMousePosition())
             redraw_list = [False] * len(self.ball)
             pos_list = [None] * len(self.ball)
             for i,ball in enumerate(self.ball):

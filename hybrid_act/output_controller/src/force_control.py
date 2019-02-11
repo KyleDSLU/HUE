@@ -25,12 +25,15 @@ class Force_Controller():
 
         # Initialize constants
         self.INITIALIZE_LENGTH = 200
-        self.COUNT_THRESHOLD = 30
-
+        self.COUNT_THRESHOLD = self.INITIALIZE_LENGTH/2
         # Initialize subs and pubs
         self.force_pub = rospy.Publisher('/force_recording/force_records', ForceArray, queue_size = 0)
         self.msg_pub = rospy.Publisher('/arduino/msgout', UInt8Array, queue_size = 3)
         self.normforce_pub = rospy.Publisher('/force_recording/normal_force', Float32, queue_size = 0)
+        self.norm_force_scaled = Float32()
+        #FSA 10N sensor with 10-90% Transfer function in 5V output
+        self.FORCE_SENSOR_OFFSET_COUNTS = 0.1*1024
+        self.FORCE_SENSOR_SCALING = 10/(1024.-2*self.FORCE_SENSOR_OFFSET_COUNTS)
 
         self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
         self.int_sub = rospy.Subscriber('/'+self.haptic_name+'/intensity/', Int8, self.int_callback, queue_size = 1)
@@ -72,23 +75,27 @@ class Force_Controller():
         self.tan_force_publish = np.zeros((1,self.INITIALIZE_LENGTH))
         self.x_position_publish = np.zeros((1,self.INITIALIZE_LENGTH))
         self.intensity_publish = np.zeros((1,self.INITIALIZE_LENGTH))
+        self.norm_force_publish[0][:] = self.nan[:]
+        self.tan_force_publish[0][:] = self.nan[:] 
+        self.x_position_publish[0][:] = self.nan[:] 
+        self.intensity_publish[0][:] = self.nan[:] 
 
     def forcechan_callback(self, forcechannel):
         self.channels = forcechannel.channels
         self.forcechan = forcechannel.measure_channel
         # Extend arrays if more than 1 channel
-        if (self.channels > self.norm_force_publish.shape[0]):
+        if (self.channels != self.norm_force_publish.shape[0]):
             self.lengths = [0]*self.channels
             self.norm_force_publish = np.zeros((self.channels,self.INITIALIZE_LENGTH))
             self.tan_force_publish = np.zeros((self.channels,self.INITIALIZE_LENGTH))
             self.x_position_publish = np.zeros((self.channels,self.INITIALIZE_LENGTH))
             self.intensity_publish = np.zeros((self.channels,self.INITIALIZE_LENGTH))
 
-        for i in range(self.channels):
-            self.norm_force_publish[i][:] = self.nan[:]
-            self.tan_force_publish[i][:] = self.nan[:] 
-            self.x_position_publish[i][:] = self.nan[:] 
-            self.intensity_publish[i][:] = self.nan[:] 
+            for i in range(self.channels):
+                self.norm_force_publish[i][:] = self.nan[:]
+                self.tan_force_publish[i][:] = self.nan[:] 
+                self.x_position_publish[i][:] = self.nan[:] 
+                self.intensity_publish[i][:] = self.nan[:] 
 
     def int_callback(self, intensity):
         self.intensity_latest = int(intensity.data/100. * 180)
@@ -111,7 +118,12 @@ class Force_Controller():
         if self.force_status and self.intensity_latest != None and self.forces != None and self.count < self.INITIALIZE_LENGTH:
             # Offset for initial conditions
             forces = self.forces
-            self.norm_force[self.count] = int(sum(forces[:3])/float(len(forces[:3])))
+            norm_force_unscaled = int(sum(forces[:3])/float(len(forces[:3])))
+            self.norm_force[self.count] = norm_force_unscaled
+
+            self.norm_force_scaled.data = 4*(norm_force_unscaled-self.FORCE_SENSOR_OFFSET_COUNTS)*self.FORCE_SENSOR_SCALING
+            self.normforce_pub.publish(self.norm_force_scaled)
+
             self.tan_force[self.count] = forces[4]
             self.x_position[self.count] = ir_xy.data[0]
             self.intensity[self.count] = self.intensity_latest
@@ -124,9 +136,8 @@ class Force_Controller():
                 self.norm_force_publish[self.forcechan][:self.count-1] = self.norm_force[:self.count-1]
                 self.tan_force_publish[self.forcechan][:self.count-1] = self.tan_force[:self.count-1]
                 self.x_position_publish[self.forcechan][:self.count-1] = self.x_position[:self.count-1]
-                self.intensity_publish[self.forcechan][:self.count-1] = self.x_position[:self.count-1]
+                self.intensity_publish[self.forcechan][:self.count-1] = self.intensity[:self.count-1]
                 self.lengths[self.forcechan] = self.count
-                print(self.lengths)
 
                 norm_force_publish = self.norm_force_publish.flatten()
                 norm_force_publish = norm_force_publish[~np.isnan(norm_force_publish)]
@@ -140,7 +151,6 @@ class Force_Controller():
                 intensity_publish = self.intensity_publish.flatten()
                 intensity_publish = intensity_publish[~np.isnan(intensity_publish)]
 
-                
                 force = ForceArray()
                 force.channels = self.channels
                 force.lengths = self.lengths

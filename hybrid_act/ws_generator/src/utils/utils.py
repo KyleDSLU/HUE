@@ -158,11 +158,11 @@ def Generate_WS(obj, ws, ws_div):
         elif shape  == "Square":
             sinusoid = np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*frequency*2*np.pi)
             ind = [np.where(sinusoid>=0)[0], np.where(sinusoid<0)[0]]
-            intensity[i][int(ind[0]+obj.TEXTBOX_WIDTH)] = amp/2. + 0.5
-            intensity[i][int(ind[1]+obj.TEXTBOX_WIDTH)] = 0.5 - amp/2.
+            intensity[i][ind[0]+int(obj.TEXTBOX_WIDTH)] = amp/2. + 0.5
+            intensity[i][ind[1]+int(obj.TEXTBOX_WIDTH)] = 0.5 - amp/2.
 
         elif shape == "Triangular":
-            triangle = np.zeros(obj.HAPTIC_WIDTH)
+            triangle = np.zeros(int(obj.HAPTIC_WIDTH))
             slope = frequency/float(obj.HAPTIC_WIDTH)
             triangle[0] = 0.5 - amp/2.
             for j in range(1,len(triangle)):

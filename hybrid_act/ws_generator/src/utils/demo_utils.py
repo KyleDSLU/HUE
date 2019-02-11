@@ -49,7 +49,6 @@ class DemoPanel(wx.Panel):
         
         self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
 	
-        
 	self.force_channel = [ForceChannel()]
         self.force_channel[0].channels = 1 
         self.force_channel[0].measure_channel = 0
@@ -140,8 +139,10 @@ class DemoPanel(wx.Panel):
         if self.BITMAP_FLAG:
             redraw_list = [False] * len(self.ball)
             pos_list = [None] * len(self.ball)
+
             for i,ball in enumerate(self.ball):
                 ball_point_distance = ((ball.x-x)**2 + (ball.y-y)**2)**(1/2.)
+
                 if ball_point_distance < self.BALL_RADIUS and ball.x < self.BALL_RIGHTMARGIN:
                     if ball.x == self.BALL_LEFTMARGIN:
                         self.master_actuation_pub.publish(True)
@@ -152,6 +153,7 @@ class DemoPanel(wx.Panel):
                     redraw_list[i] = True
                     pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
                     break
+
                 elif ball.x > self.BALL_START[i][0]:
                     if self.wait_count[i] < self.WAIT:
                         self.wait_count[i] += 1
@@ -162,6 +164,7 @@ class DemoPanel(wx.Panel):
                         pos_list = self.BALL_START
                         self.master_actuation_pub.publish(False)
                         self.master_force_pub.publish(False)
+
             if any(redraw_list):
                 self.draw_balls(redraw_list, pos_list)
 
@@ -280,7 +283,7 @@ class DemoFrame(wx.Frame):
         COMBOTEXTSPACING = int(WIDTH*0.0135)
         TEXTOFFSETS = [0,0,0,3,2]
 
-        NORM_FORCE_DESIRED = 100
+        NORM_FORCE_DESIRED = 10
         NORM_FORCE_THRESHOLD = 20
 
         icon_size = WIDTH*ICONSCALING
@@ -442,10 +445,10 @@ class DemoFrame(wx.Frame):
 
 	#Add button sizer components
 		
-        button_size = wx.Size(int(HEIGHT*0.01), WIDTH*0.05)
+        button_size = wx.Size(int(HEIGHT*0.01), WIDTH*0.01)
         save_button = wx.Button(self, wx.ID_ANY, 'SAVE', size = button_size)
-	
         save_button.Bind(wx.EVT_BUTTON, self.on_save_button) 
+        save_button.Disable()
 	#save_button_label = wx.StaticText(self, id = -1, label = "Save", style = wx.ALIGN_CENTER,  name = "Save") 
 	save_vsizer.Add(save_button, 0, wx.EXPAND)
 	#save_vsizer.Add(save_button_label, 0, wx.EXPAND)
@@ -459,9 +462,6 @@ class DemoFrame(wx.Frame):
 	text_norm_hsizer.Add(spacer_buffer_middle2, 1, wx.EXPAND)
         text_norm_hsizer.Add(norm_vsizer, 1, wx.EXPAND)
         text_norm_hsizer.Add(spacer_buffer_right, 1, wx.RIGHT)
-	
-
-
 
 	tool_sizer.Add(text_norm_hsizer, 0) 
 	 
@@ -485,7 +485,6 @@ class DemoFrame(wx.Frame):
         self.norm_force = force_array.norm_force
         self.x_positions = force_array.x_positions
         self.intensity = force_array.intensity
-        print("here", self.lengths)
     
     def on_save_button(self, *args):    	
     	#save on the csv file the name of the user

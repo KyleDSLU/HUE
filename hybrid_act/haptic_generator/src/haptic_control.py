@@ -31,9 +31,8 @@ class haptic_controller():
                 if list(self.ws.y_ws)[i*2] <= ir_y <= list(self.ws.y_ws)[i*2+1]:
                     # scale x position by ws compression constant
                     ir_x = int(ir_xy.data[0]/self.ws.int_compress)
-                    intensity = list(self.ws.intensity)[ir_x]
+                    intensity = list(self.ws.intensity)[i*self.division+ir_x]
                     break
-
 
             if (intensity >= self.last_intensity*0.99 or intensity <= self.last_intensity*1.01):
                 msg = Int8()
@@ -43,6 +42,7 @@ class haptic_controller():
 
     def ws_callback(self, ws):
         self.ws = ws
+        self.division = len(ws.intensity)/2
 
     def master_callback(self, master):
         self.master = master.data
