@@ -35,6 +35,13 @@ class Force_Controller():
         self.FORCE_SENSOR_OFFSET_COUNTS = 0.1*1024
         self.FORCE_SENSOR_SCALING = 10/(1024.-2*self.FORCE_SENSOR_OFFSET_COUNTS)
 
+        self.count = 0
+        self.forcechan = None
+        self.intensity_latest = None
+        self.initial_forces = None
+        self.force_status = False
+        self.forces = None
+
         self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
         self.int_sub = rospy.Subscriber('/'+self.haptic_name+'/intensity/', Int8, self.int_callback, queue_size = 1)
         self.ws_sub = rospy.Subscriber('/cursor_position/workspace', WSArray, self.ws_callback, queue_size = 1)
@@ -54,13 +61,6 @@ class Force_Controller():
         self.tan_force[:] = self.nan[:]
         self.x_position[:] = self.nan[:]
         self.intensity[:] = self.nan[:]
-
-        self.count = 0
-        self.forcechan = None
-        self.intensity_latest = None
-        self.initial_forces = None
-        self.force_status = False
-        self.forces = None
 
         time.sleep(2)
         self.initialize()

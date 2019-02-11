@@ -8,17 +8,17 @@ from haptic_generator.msg import IntArray, WSArray
 class haptic_controller():
 
     def __init__(self):
+        self.last_intensity = 0
+        self.ws = None
+
+        self.master = False
+
         rospy.init_node('haptic_control')
         self.haptic_name = rospy.get_param('~name')
         self.master_sub = rospy.Subscriber('/hue_master/actuation', Bool, self.master_callback, queue_size = 1)
         self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.actuation_callback, queue_size = 1)
         self.ws_sub = rospy.Subscriber('/cursor_position/workspace/'+self.haptic_name, WSArray, self.ws_callback, queue_size = 1)
         self.int_pub = rospy.Publisher('/'+self.haptic_name+'/intensity/', Int8, queue_size = 0)
-
-        self.last_intensity = 0
-        self.ws = None
-
-        self.master = False
 
         rospy.on_shutdown(self.close)
         rospy.spin()

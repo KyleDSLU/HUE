@@ -84,7 +84,7 @@ class DemoPanel(wx.Panel):
 
         self.BALL_RADIUS = int(self.RECTANGLE_SIZE/2*1.1)
         self.BALL_YOFFSET = -0.0125*self.HEIGHT
-        self.BALL_LEFTMARGIN = 0.95*self.BALL_RADIUS+self.TEXTBOX_WIDTH
+        self.BALL_LEFTMARGIN = 0.95*self.BALL_RADIUS+0.065*self.WIDTH
         self.BALL_RIGHTMARGIN = self.WIDTH-1.2*self.BALL_RADIUS
         self.ball = [[]]
         self.wait_count = [0]*len(self.ball)
@@ -107,7 +107,10 @@ class DemoPanel(wx.Panel):
     def on_paint(self, event):
         if self.updateFlag == True:
             self.updateFlag = False
-            self.clearPanel()
+            try:
+                self.clearPanel()
+            except:
+                pass
 
         if self.WIDTH > 20 and self.HEIGHT > 20:
             if not self.BITMAP_FLAG:
@@ -203,13 +206,13 @@ class DemoPanel(wx.Panel):
             rectangle_y = self.FIRST_RECTANGLE_Y
             dc.SetPen(wx.Pen(self.RECTANGLE_COLOR))
             dc.SetBrush(wx.Brush(self.RECTANGLE_COLOR))
-            # set x, y, w, h for rectangle
+            #set x, y, w, h for rectangle
+            #dc.DrawRectangle(0, rectangle_y, self.WIDTH, self.RECTANGLE_SIZE)
+            #dc.SetPen(wx.Pen(self.TEXTBOX_COLOR))
+            #dc.SetBrush(wx.Brush(self.TEXTBOX_COLOR))
             dc.DrawRectangle(0, rectangle_y, self.WIDTH, self.RECTANGLE_SIZE)
-            dc.SetPen(wx.Pen(self.TEXTBOX_COLOR))
-            dc.SetBrush(wx.Brush(self.TEXTBOX_COLOR))
-            dc.DrawRectangle(0, rectangle_y, self.TEXTBOX_WIDTH, self.RECTANGLE_SIZE)
-            textbox = wx.Rect(self.TEXTBOX_X, rectangle_y+self.TEXTBOX_Y)
-            dc.DrawLabel("Hybrid", textbox, alignment=1)
+            #textbox = wx.Rect(self.TEXTBOX_X, rectangle_y+self.TEXTBOX_Y)
+            #dc.DrawLabel("Hybrid", textbox, alignment=1)
 
             bmp = wx.EmptyBitmap(self.WIDTH, self.HEIGHT)
             memDC = wx.MemoryDC()
@@ -272,7 +275,7 @@ class DemoFrame(wx.Frame):
         self.HEIGHT = HEIGHT
         self.WIDTH = WIDTH
 
-        FONTSCALING = 0.01
+        FONTSCALING = 0.025
         ICONSCALING = 0.01
         COMBOSCALING = ICONSCALING*1.1
         HORIZSPACERSIZE = 4
@@ -313,7 +316,6 @@ class DemoFrame(wx.Frame):
         self.rospack = rospkg.RosPack()
         path = self.rospack.get_path('ws_generator')
         path = os.path.join(path, 'src/utils/ref/')
-
         # backbutton image 
         image_file = os.path.join(path,"340.png")
         png = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
@@ -397,10 +399,10 @@ class DemoFrame(wx.Frame):
 
         #Create button/cb labels
         #blank space is workaround for screen cover 
-        s = " " * (LEFTTEXTSPACING + TEXTOFFSETS[0]) + "Back"
-        s += " " * (BUTTONTEXTSPACING - len("Back") + TEXTOFFSETS[1]) + "Frequency"
-        s += " " * (COMBOTEXTSPACING - len("Frequency") + TEXTOFFSETS[2]) + "Texture"
-        s += " " * (COMBOTEXTSPACING - len("Texture") + TEXTOFFSETS[3]) + "Hybrid"
+        s =  "  " * (LEFTTEXTSPACING + TEXTOFFSETS[0]) + "Back"
+        s += "  " * (BUTTONTEXTSPACING - len("Back") + TEXTOFFSETS[1]) + "Frequency"
+        s += "  " * (COMBOTEXTSPACING - len("Frequency") + TEXTOFFSETS[2]) + "Texture"
+        s += "  " * (COMBOTEXTSPACING - len("Texture") + TEXTOFFSETS[3]) + "Hybrid"
         s += " " * (COMBOTEXTSPACING - len("Hybrid") + TEXTOFFSETS[4]) + "Submit"
         labels = wx.StaticText(self, 1, s) 
         labels.SetFont(font) 
@@ -431,21 +433,25 @@ class DemoFrame(wx.Frame):
 
 	#Add sizer for .csv name input
 	csv_name_label = wx.StaticText(self, id = -1, label = "csv file", style = wx.ALIGN_CENTER,  name = "csv file") 
-	
+	csv_name_label.SetFont(font)
 	self.csv_text_box = wx.TextCtrl(self, size = (200,50)) 
+        self.csv_text_box.SetFont(font)
         csv_vsizer.Add(self.csv_text_box, 0, wx.EXPAND)
 	csv_vsizer.Add(csv_name_label, 0, wx.EXPAND) 
-	#Add sizer for normal force
+
+
+
+        #Add sizer for normal force
         
-        norm_force_label = NormForceLabel(self, HEIGHT*FONTSCALING)
-        norm_vsizer.Add(norm_force_label, 0, wx.EXPAND)
+        #norm_force_label = NormForceLabel(self, HEIGHT*FONTSCALING)
+        #norm_vsizer.Add(norm_force_label, 0, wx.EXPAND)
         norm_force_panel = NormForcePanel(self, HEIGHT*FONTSCALING, NORM_FORCE_DESIRED, NORM_FORCE_THRESHOLD)
-        norm_vsizer.Add(norm_force_panel, 0, wx.EXPAND)
+        norm_vsizer.Add(norm_force_panel, 0)
          		
 
 	#Add button sizer components
 		
-        button_size = wx.Size(int(HEIGHT*0.01), WIDTH*0.01)
+        button_size = wx.Size(int(HEIGHT*0.025), WIDTH*0.025)
         save_button = wx.Button(self, wx.ID_ANY, 'SAVE', size = button_size)
         save_button.Bind(wx.EVT_BUTTON, self.on_save_button) 
         save_button.Disable()
