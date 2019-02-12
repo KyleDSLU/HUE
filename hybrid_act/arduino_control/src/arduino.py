@@ -47,7 +47,6 @@ class ArduinoController():
             # Simple error handling only used if repeating loop
             if (checksum_received):
                 if (resend_count < 1e2):
-                    #print('Checksum did not agree! Resending', packet[0], checksum, checksum_received)
                     resend_count += 1
                     time.sleep(0.001)
                 else:

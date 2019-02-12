@@ -72,7 +72,7 @@ class DemoPanel(wx.Panel):
         self.RECTANGLE_SEPERATION = int((self.HEIGHT-self.FIRST_RECTANGLE_Y-self.BOTTOM_SPACE-self.RECTANGLES*self.RECTANGLE_SIZE)/3.0)
 
         #set up textbox and lines
-        self.TEXTBOX_WIDTH = 0.15*self.WIDTH
+        self.TEXTBOX_WIDTH = 0.065*self.WIDTH
         self.TEXTBOX_X = 0.04*self.WIDTH
         self.TEXTBOX_XOFFSET = 0.80*self.WIDTH
         self.TEXTBOX_Y = self.RECTANGLE_SIZE*0.35
@@ -84,8 +84,8 @@ class DemoPanel(wx.Panel):
 
         self.BALL_RADIUS = int(self.RECTANGLE_SIZE/2*1.1)
         self.BALL_YOFFSET = -0.0125*self.HEIGHT
-        self.BALL_LEFTMARGIN = 0.95*self.BALL_RADIUS+0.065*self.WIDTH
-        self.BALL_RIGHTMARGIN = self.WIDTH-1.2*self.BALL_RADIUS
+        self.BALL_LEFTMARGIN = 0.95*self.BALL_RADIUS+self.TEXTBOX_WIDTH
+        self.BALL_RIGHTMARGIN = self.WIDTH-2.0*self.BALL_RADIUS
         self.ball = [[]]
         self.wait_count = [0]*len(self.ball)
         first_ball_start = int(self.FIRST_RECTANGLE_Y+self.BALL_RADIUS+self.BALL_YOFFSET)
@@ -262,6 +262,8 @@ class DemoFrame(wx.Frame):
             widget.Append(obj.shape, obj)
 
     def on_close(self, event):
+        self.norm_force_panel.close()
+        self.panel.ir_sub.unregister()
         self.timer.Stop()
         self.Destroy()
 
@@ -276,17 +278,17 @@ class DemoFrame(wx.Frame):
         self.WIDTH = WIDTH
 
         FONTSCALING = 0.025
-        ICONSCALING = 0.01
-        COMBOSCALING = ICONSCALING*1.1
+        ICONSCALING = 0.0125
+        COMBOSCALING = ICONSCALING*2.3
         HORIZSPACERSIZE = 4
-        VERTSPACERMULT = HEIGHT*0.01
+        VERTSPACERMULT = HEIGHT*0.015
 
         LEFTTEXTSPACING = int(WIDTH*0.008)
         BUTTONTEXTSPACING = int(WIDTH*0.007)
         COMBOTEXTSPACING = int(WIDTH*0.0135)
         TEXTOFFSETS = [0,0,0,3,2]
 
-        NORM_FORCE_DESIRED = 10
+        NORM_FORCE_DESIRED = 12
         NORM_FORCE_THRESHOLD = 20
 
         icon_size = WIDTH*ICONSCALING
@@ -347,7 +349,7 @@ class DemoFrame(wx.Frame):
                     OptionList(9,'100')]
 
         textures = [OptionList(0, "Bump"),
-                    OptionList(1, "Sinusoidal"),
+                    OptionList(1, "Sinusoid"),
                     OptionList(2, "Triangular"),
                     OptionList(3, "Square")]
 
@@ -366,8 +368,7 @@ class DemoFrame(wx.Frame):
         self.widgetMaker(self.texture, textures)
         
         
-        self.Amplitude_hybrid = wx.ComboBox(self,
-                              size=(combo_size,combo_size),
+        self.Amplitude_hybrid = wx.ComboBox(self, size=(combo_size,combo_size),
                               choices=sampleList,
                               pos=(0.4*WIDTH,0.05*HEIGHT),
                               style=wx.CB_READONLY)
@@ -434,19 +435,17 @@ class DemoFrame(wx.Frame):
 	#Add sizer for .csv name input
 	csv_name_label = wx.StaticText(self, id = -1, label = "csv file", style = wx.ALIGN_CENTER,  name = "csv file") 
 	csv_name_label.SetFont(font)
-	self.csv_text_box = wx.TextCtrl(self, size = (200,50)) 
+	self.csv_text_box = wx.TextCtrl(self, size = (combo_size,combo_size))
         self.csv_text_box.SetFont(font)
         csv_vsizer.Add(self.csv_text_box, 0, wx.EXPAND)
 	csv_vsizer.Add(csv_name_label, 0, wx.EXPAND) 
-
-
 
         #Add sizer for normal force
         
         #norm_force_label = NormForceLabel(self, HEIGHT*FONTSCALING)
         #norm_vsizer.Add(norm_force_label, 0, wx.EXPAND)
-        norm_force_panel = NormForcePanel(self, HEIGHT*FONTSCALING, NORM_FORCE_DESIRED, NORM_FORCE_THRESHOLD)
-        norm_vsizer.Add(norm_force_panel, 0)
+        self.norm_force_panel = NormForcePanel(self, HEIGHT*FONTSCALING, NORM_FORCE_DESIRED, NORM_FORCE_THRESHOLD)
+        norm_vsizer.Add(self.norm_force_panel, 0)
          		
 
 	#Add button sizer components
@@ -514,7 +513,7 @@ class DemoFrame(wx.Frame):
             fout.close()
 
     def generate_workspace(self, evt):
-        ws = {0: ["Hybrid", self.Amplitude_hybrid.GetValue(), self.texture.GetValue(), self.frequency.GetValue()]}
+        ws = {0: ["Hybrid", int(self.Amplitude_hybrid.GetValue())/100., self.texture.GetValue(), int(self.frequency.GetValue())]}
         
         ws_compress = 2
         intensity, y_ws = Generate_WS(self.panel, ws, ws_compress)

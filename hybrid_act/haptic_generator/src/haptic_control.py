@@ -40,6 +40,13 @@ class haptic_controller():
                 self.int_pub.publish(msg)
                 self.last_intensity = intensity
 
+        else:
+            intensity = 50
+            msg = Int8()
+            msg.data = intensity
+            self.int_pub.publish(msg)
+            self.last_intensity = intensity
+
     def ws_callback(self, ws):
         self.ws = ws
         self.division = len(ws.intensity)/2

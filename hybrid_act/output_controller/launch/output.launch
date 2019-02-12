@@ -5,7 +5,7 @@
     <node name="hybrid_control" pkg="output_controller" type="force_control.py" output="screen">
         <param name="name" value="hybrid"/>
         <param name="force_case" value="4"/>
-        <param name="force_msg_length" value="11"/>
+        <param name="force_msg_length" value="9"/>
         <param name="phase_case" value="5"/>
         <param name="phase_msg_length" value="1"/>
     </node>

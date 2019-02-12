@@ -30,8 +30,8 @@ class Frame(wx.Frame):
         self.force_sub = rospy.Subscriber('/force_recording/force_records', ForceArray, self.force_callback, queue_size = 1)
 
         self.REFRESH_RATE = 50
-        self.SCREEN_LENGTH = 15
-        self.BALL_VELOCITY = 10     #cm/s
+        self.SCREEN_LENGTH = 8
+        self.BALL_VELOCITY = 5     #cm/s
 
         self._layout(self.BALL_VELOCITY, self.REFRESH_RATE, self.SCREEN_LENGTH)
 
@@ -379,6 +379,8 @@ class Frame(wx.Frame):
             widget.Append(obj.shape, obj)
 
     def on_close(self, event):
+        self.norm_force_panel.close()
+        self.question_panel.close()
         self.timer.Stop()
         self.Destroy()
 
@@ -407,17 +409,17 @@ class Frame(wx.Frame):
         self.HEIGHT = HEIGHT
         self.WIDTH = WIDTH
 
-        FONTSCALING = 0.01
-        ICONSCALING = 0.01
-        COMBOSCALING = ICONSCALING*1.1
+        FONTSCALING = 0.025
+        ICONSCALING = 0.0125
+        COMBOSCALING = ICONSCALING*2.3
         HORIZSPACERSIZE = 4
-        VERTSPACERMULT = HEIGHT*0.01
+        VERTSPACERMULT = HEIGHT*0.015
 
         LEFTTEXTSPACING = int(WIDTH*0.008)
         BUTTONTEXTSPACING = int(WIDTH*0.007)
         COMBOTEXTSPACING = int(WIDTH*0.0135)
 
-        NORM_FORCE_DESIRED = 10
+        NORM_FORCE_DESIRED = 12
         NORM_FORCE_THRESHOLD = 20
         button_size = wx.Size(int(HEIGHT*0.01), WIDTH*0.05)
 
@@ -501,14 +503,14 @@ class Frame(wx.Frame):
         overall_sizer = wx.BoxSizer(wx.HORIZONTAL)
         vsizer = wx.BoxSizer(wx.VERTICAL)
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
-        norm_force_label = NormForceLabel(self, HEIGHT*FONTSCALING)
-        norm_force_panel = NormForcePanel(self, HEIGHT*FONTSCALING, NORM_FORCE_DESIRED, NORM_FORCE_THRESHOLD)
-        question_panel = QuestionPanel(self, HEIGHT*FONTSCALING)
-        vsizer.Add(norm_force_label,0, wx.EXPAND)
-        vsizer.Add(norm_force_panel, 0, wx.EXPAND)
+        #norm_force_label = NormForceLabel(self, HEIGHT*FONTSCALING)
+        self.norm_force_panel = NormForcePanel(self, HEIGHT*FONTSCALING, NORM_FORCE_DESIRED, NORM_FORCE_THRESHOLD)
+        self.question_panel = QuestionPanel(self, HEIGHT*FONTSCALING)
+        #vsizer.Add(norm_force_label,0, wx.EXPAND)
+        vsizer.Add(self.norm_force_panel, 0, wx.EXPAND)
 
         hsizer.Add(spacer_buffer_left, 1, wx.LEFT)
-        hsizer.Add(question_panel, 1, wx.EXPAND)
+        hsizer.Add(self.question_panel, 1, wx.EXPAND)
         hsizer.Add(spacer_buffer_middle, 1, wx.EXPAND)
         hsizer.Add(vsizer, 1, wx.EXPAND)
         hsizer.Add(spacer_buffer_right, 1, wx.RIGHT)

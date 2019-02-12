@@ -25,15 +25,14 @@ class Frame(demo_utils.DemoFrame):
         self.master_actuation_pub.publish(b)
 
         self.REFRESH_RATE = 50
-        self.SCREEN_LENGTH = 15
-        self.BALL_VELOCITY = 10     #cm/s
+        self.SCREEN_LENGTH = 8
+        self.BALL_VELOCITY = 5     #cm/s
         demo_utils.DemoFrame.__init__(self, self.BALL_VELOCITY, self.REFRESH_RATE, self.SCREEN_LENGTH)
 
         # Generate Gui
         self.Centre()
         self.Show()
-
-    def close(self):
+def close(self):
         self.Close()
         f = main.frameMain(None)
         f.show()

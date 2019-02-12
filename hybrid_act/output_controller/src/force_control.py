@@ -98,12 +98,12 @@ class Force_Controller():
                 self.intensity_publish[i][:] = self.nan[:] 
 
     def int_callback(self, intensity):
-        self.intensity_latest = int(intensity.data/100. * 180)
+        # AD9833 reads phase with decimal shifted eg. 110.1 degrees = 1101
+        self.intensity_latest = int(intensity.data/100. * 180 * 10)
         self.msg.data = tuple(bytearray(self.phase_case + struct.pack('>H', self.intensity_latest) + self.phase_msg_return))
         self.msg_pub.publish(self.msg)
-        if self.force_status:
-            self.msg.data = tuple(bytearray(self.force_case + self.force_msg_return))
-            self.msg_pub.publish(self.msg)
+        self.msg.data = tuple(bytearray(self.force_case + self.force_msg_return))
+        self.msg_pub.publish(self.msg)
 
     def msg_callback(self, bytearr):
         case = bytearr.data[0]
@@ -112,19 +112,19 @@ class Force_Controller():
             if self.initial_forces == None:
                 self.initial_forces = forces
             else:
-                self.forces = forces - self.initial_forces
+                self.forces = forces# - self.initial_forces
 
     def cursor_callback(self,ir_xy):
         if self.force_status and self.intensity_latest != None and self.forces != None and self.count < self.INITIALIZE_LENGTH:
             # Offset for initial conditions
             forces = self.forces
-            norm_force_unscaled = int(sum(forces[:3])/float(len(forces[:3])))
+            norm_force_unscaled = int(sum(forces[:2])/float(len(forces[:2])))
             self.norm_force[self.count] = norm_force_unscaled
 
             self.norm_force_scaled.data = 4*(norm_force_unscaled-self.FORCE_SENSOR_OFFSET_COUNTS)*self.FORCE_SENSOR_SCALING
             self.normforce_pub.publish(self.norm_force_scaled)
 
-            self.tan_force[self.count] = forces[4]
+            self.tan_force[self.count] = forces[3]
             self.x_position[self.count] = ir_xy.data[0]
             self.intensity[self.count] = self.intensity_latest
             self.count += 1

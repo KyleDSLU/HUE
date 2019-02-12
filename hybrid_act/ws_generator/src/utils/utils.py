@@ -11,8 +11,8 @@ class QuestionPanel(wx.Panel):
         wx.Panel.__init__(self, parent)
         font = wx.Font(fontsize, wx.ROMAN, wx.NORMAL, wx.NORMAL)
 
-        width = fontsize*75
-        height = fontsize*6
+        width = fontsize*15
+        height = fontsize
         self.innerPanel = wx.Panel(self, -1, style=wx.ALIGN_CENTER)
         hbox = wx.BoxSizer(wx.HORIZONTAL) 
         vbox = wx.BoxSizer(wx.VERTICAL)
@@ -37,6 +37,9 @@ class QuestionPanel(wx.Panel):
     def question_callback(self, question):
         question = question.data
         wx.CallAfter(self.txt.SetLabelText, question)
+
+    def close(self):
+        self.question_sub.unregister()
 
 class NormForceLabel(wx.Panel):
     def __init__(self, parent, fontsize):
@@ -99,12 +102,15 @@ class NormForcePanel(wx.Panel):
     def norm_force_callback(self, norm_force):
         norm_force = norm_force.data
         norm_force_percent = float(100*norm_force/self.norm_force_desired)
-        wx.CallAfter(self.txt.SetLabel, "{0:.1f}".format(norm_force_percent))
+        wx.CallAfter(self.txt.SetLabel, "{0:.1f}".format(norm_force))
         if ((100-self.norm_force_threshold) <= norm_force_percent <= (100+self.norm_force_threshold)):
             color = "GREEN"
         else:
             color = "RED"
         wx.CallAfter(self.innerPanel.SetBackgroundColour, color)
+
+    def close(self):
+        self.norm_force_sub.unregister()
 
 class Ball(object):
     def __init__(self, l_xy, radius, x_lim, color="RED"):
@@ -146,6 +152,7 @@ def Generate_WS(obj, ws, ws_div):
     HORIZ_PIXELS = np.arange(HAPTIC_WIDTH)
 
     # ws has form of channel: actuation, amplitude, texture, frequency
+    print("WS", ws.values())
     for i,value in enumerate(ws.values()):
         actuation = value[0]
         amp = value[1]
