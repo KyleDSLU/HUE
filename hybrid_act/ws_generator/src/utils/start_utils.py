@@ -27,6 +27,12 @@ class DemoPanel(wx.Panel):
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.REFRESH = refresh
+
+        #setting up init pause
+        self.INIT_WAIT = 0.5        # seconds
+        self.INIT_WAIT = self.INIT_WAIT/(self.REFRESH/1000.)
+        self.init_pause = 0
+
         self.LENGTH = length
         self.BALL_VELOCITY = velocity
         self.screenDC = wx.ScreenDC()
@@ -151,11 +157,13 @@ class DemoPanel(wx.Panel):
                         self.master_actuation_pub.publish(True)
                         self.master_force_pub.publish(True)
                         self.forcechannel_pub.publish(self.force_channel[i])
+                        self.init_pause += 1
 
-                    self.wait_count[i] = 0
-                    redraw_list[i] = True
-                    pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
-                    break
+                    if self.init_pause >= self.INIT_WAIT:
+                        self.wait_count[i] = 0
+                        redraw_list[i] = True
+                        pos_list[i] = [ball.x + self.BALL_MOVEX, ball.y]
+                        break
                 elif ball.x > self.BALL_START[i][0]:
                     if self.wait_count[i] < self.WAIT:
                         self.wait_count[i] += 1
@@ -166,6 +174,7 @@ class DemoPanel(wx.Panel):
                         pos_list = self.BALL_START
                         self.master_actuation_pub.publish(False)
                         self.master_force_pub.publish(False)
+                        self.init_pause = 0
 
             if any(redraw_list):
                 self.draw_balls(redraw_list, pos_list)

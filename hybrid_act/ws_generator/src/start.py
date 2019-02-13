@@ -299,14 +299,13 @@ class Frame(wx.Frame):
 
     def save_data(self):
         with open(self.CSVFILE, 'a') as fout:
-            l = [self.CORRECT, self.elapsed_time]
-            output_dict = copy.deepcopy(self.rand_output)
-            output = self.convert_output_to_key(output_dict.values())
-            for channel in output:
+            l = [self.CORRECT, self.ws[0], self.elapsed_time]
+            for channel in self.rand_output.values():
                 for value in channel:
                     l.append(value)
-                l.append(self.SEPERATION_CHAR)
+            l.append(self.SEPERATION_CHAR)
 
+            output = self.convert_output_to_key(l)
             index = 0
             for length in self.lengths:
                 l.extend(self.tan_force[index:length+index])
@@ -332,7 +331,7 @@ class Frame(wx.Frame):
 
     def convert_output_to_key(self, values_input):
         true_false_dict = {True: 1, False:0}
-        test_dict = {"AMPLITUDE": 0, "FREQUENCY": 1, "TEXTURE": 2}
+        test_dict = {"AMPLITUDE_TEST": 0, "FREQUENCY_TEST": 1, "TEXTURE_TEST": 2}
         output_dict = {"Hybrid": 0}
         texture_dict = {"Sinusoid": 0, "Square": 1, "Triangular": 2}
 
