@@ -49,14 +49,12 @@ class IR_Controller():
 
     def cursor_correction(self):
         self.raw_position_msg = IntArray()
-        self.raw_position_msg.header.stamp = rospy.Time(0,0)
         self.raw_position_msg.data = self.raw_position
         self.raw_pub.publish(self.raw_position_msg)
 
         self.corrected_position = [int(self._xscale*(self.raw_position[0]-self._xmax/2)+self._xmax/2),int(self._yscale*(self.raw_position[1]-self._ymax/2)+self._ymax/2)]
 
         self.corrected_position_msg = IntArray()
-        self.corrected_position_msg.header.stamp = rospy.Time(0,0)
         self.corrected_position_msg.data = self.raw_position
 
         self.cursor_pub.publish(self.corrected_position_msg)

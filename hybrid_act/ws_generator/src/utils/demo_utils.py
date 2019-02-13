@@ -260,7 +260,7 @@ class DemoFrame(wx.Frame):
 
     def checkSelect(self, evt):
         #checks to see if all selections have been made before submit button is enabled
-        if not ((self.frequency.GetValue() == '') or (self.texture.GetValue() == '') or (self.Amplitude_hybrid.GetValue() == '')):
+        if not ((self.actuations.GetValue() == '') or (self.frequency.GetValue() == '') or (self.texture.GetValue() == '') or (self.Amplitude_hybrid.GetValue() == '')):
             self.submit_button.Enable()            
 
     def widgetMaker(self, widget, objects):
@@ -344,6 +344,10 @@ class DemoFrame(wx.Frame):
         self.submit_button.Disable() 
        
         # setup comboBox Lists
+        actuations = [OptionList(0, "Hybrid"),
+                      OptionList(1, "UFM"),
+                      OptionList(2, "EV")]
+
         amplitudes=[OptionList(0,'10'), \
                     OptionList(1,'20'), \
                     OptionList(2,'30'), \
@@ -374,6 +378,12 @@ class DemoFrame(wx.Frame):
                               style=wx.CB_READONLY) 
         self.widgetMaker(self.texture, textures)
         
+        self.actuations = wx.ComboBox(self,
+                              size=(combo_size,combo_size),
+                              choices=sampleList,
+                              pos=(0.4*WIDTH,0.05*HEIGHT),
+                              style=wx.CB_READONLY) 
+        self.widgetMaker(self.actuations, actuations)
         
         self.Amplitude_hybrid = wx.ComboBox(self, size=(combo_size,combo_size),
                               choices=sampleList,
@@ -396,6 +406,7 @@ class DemoFrame(wx.Frame):
         #Add Buttons and comboboxes
         button_sizer.Add(spacer_buffer_left,1,0,0)
         button_sizer.Add(back_button, 1, 0, 0) 
+        button_sizer.Add(self.actuations, 2)
         button_sizer.Add(self.frequency, 2) 
         button_sizer.Add(self.texture, 2) 
         button_sizer.Add(self.Amplitude_hybrid, 2) 
@@ -408,7 +419,8 @@ class DemoFrame(wx.Frame):
         #Create button/cb labels
         #blank space is workaround for screen cover 
         s =  "  " * (LEFTTEXTSPACING + TEXTOFFSETS[0]) + "Back"
-        s += "  " * (BUTTONTEXTSPACING - len("Back") + TEXTOFFSETS[1]) + "Frequency"
+        s += "  " * (BUTTONTEXTSPACING - len("Back") + TEXTOFFSETS[0]) + "Actuation"
+        s += "  " * (BUTTONTEXTSPACING - len("Actuation") + TEXTOFFSETS[1]) + "Frequency"
         s += "  " * (COMBOTEXTSPACING - len("Frequency") + TEXTOFFSETS[2]) + "Texture"
         s += "  " * (COMBOTEXTSPACING - len("Texture") + TEXTOFFSETS[3]) + "Hybrid"
         s += " " * (COMBOTEXTSPACING - len("Hybrid") + TEXTOFFSETS[4]) + "Submit"
@@ -417,15 +429,18 @@ class DemoFrame(wx.Frame):
         text_sizer.Add(labels, 1) 
         
         #Set combobox font
+        self.actuations.SetFont(font) 
         self.frequency.SetFont(font) 
         self.texture.SetFont(font) 
         self.Amplitude_hybrid.SetFont(font) 
 
         #Setup comboboxes
+        self.actuations.Bind(wx.EVT_TEXT, self.checkSelect)
         self.frequency.Bind(wx.EVT_TEXT, self.checkSelect)
         self.texture.Bind(wx.EVT_TEXT, self.checkSelect)
         self.Amplitude_hybrid.Bind(wx.EVT_TEXT, self.checkSelect)
         
+        self.actuations.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
         self.frequency.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
         self.texture.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
         self.Amplitude_hybrid.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.update_panel)
@@ -520,15 +535,14 @@ class DemoFrame(wx.Frame):
             fout.close()
 
     def generate_workspace(self, evt):
-        ws = {0: ["Hybrid", int(self.Amplitude_hybrid.GetValue())/100., self.texture.GetValue(), int(self.frequency.GetValue())]}
+        ws = {0: [self.actuations.GetValue(), int(self.Amplitude_hybrid.GetValue())/100., self.texture.GetValue(), int(self.frequency.GetValue())]}
         
-        ws_compress = 2
+        ws_compress = 1
         intensity, y_ws = Generate_WS(self.panel, ws, ws_compress)
         # Account for sizers above demo panel
         y_ws += (self.HEIGHT - self.panel.HEIGHT)
 
         hybrid_msg = WSArray()
-        hybrid_msg.header.stamp = rospy.Time(0.0)
         hybrid_msg.y_step = len(y_ws)
         hybrid_msg.y_ws = y_ws.flatten().tolist()
         hybrid_msg.int_compress = ws_compress

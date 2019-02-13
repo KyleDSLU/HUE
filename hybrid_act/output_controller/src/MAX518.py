@@ -13,7 +13,6 @@ class MAX518_Controller(object):
         output1 = int(output1/5.0*255)
         output2 = int(output2/5.0*255)
 
-        #self._i2cbus.write_byte_data(self._address, 0x00, self._address)
         self._i2cbus.write_byte_data(self._address, 0x00, output1)
         self._i2cbus.write_byte_data(self._address, 0x01, output2)
 

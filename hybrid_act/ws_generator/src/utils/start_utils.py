@@ -64,11 +64,10 @@ class DemoPanel(wx.Panel):
         self.BOTTOM_SPACE = 0.035*self.HEIGHT
 
         self.RECTANGLE_SIZE = .25*self.HEIGHT
-        self.RECTANGLES = 1
-        self.RECTANGLE_SEPERATION = int((self.HEIGHT-self.FIRST_RECTANGLE_Y-self.BOTTOM_SPACE-self.RECTANGLES*self.RECTANGLE_SIZE)/3.0)
+        self.RECTANGLE_SEPERATION = int((self.HEIGHT-self.FIRST_RECTANGLE_Y-self.BOTTOM_SPACE-self.RECTANGLE_SIZE)/3.0)
 
         #set up textbox and lines
-        self.TEXTBOX_WIDTH = 0.05*self.WIDTH
+        self.TEXTBOX_WIDTH = 0.065*self.WIDTH
         self.TEXTBOX_X = 0.04*self.WIDTH
         self.TEXTBOX_XOFFSET = 0.80*self.WIDTH
         self.TEXTBOX_Y = self.RECTANGLE_SIZE*0.35

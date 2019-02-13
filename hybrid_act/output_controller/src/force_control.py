@@ -5,32 +5,35 @@ import struct
 import time
 
 import rospy
-from std_msgs.msg import Bool, Float32, Int8
+from std_msgs.msg import Bool, Float32, Int16
 from output_controller.msg import ForceArray, ForceChannel, WSArray, IntArray, UInt8Array
+from MAX518 import MAX518_Controller
 
-class Force_Controller():
+class Force_Controller(MAX518_Controller):
 
     def __init__(self):
         rospy.init_node('force_control')
 
         self.force_case = struct.pack('B', rospy.get_param('~force_case'))
         self.phase_case = struct.pack('B', rospy.get_param('~phase_case'))
+        self.ev_freq_case = struct.pack('B', rospy.get_param('~ev_case'))
+        self.ufm_freq_case = struct.pack('B', rospy.get_param('~ufm_case'))
         self.force_msg_return = struct.pack('B', rospy.get_param('~force_msg_length'))
-        self.phase_msg_return = struct.pack('B', rospy.get_param('~phase_msg_length'))
+        self.hue_version = rospy.get_param('~hue_version')
         self.haptic_name = rospy.get_param('~name')
-
-        # ArduinoController.__init__(self, port='/dev/ttyACM0', baudrate = 115200)
 
         self.msg = UInt8Array()
 
         # Initialize constants
         self.INITIALIZE_LENGTH = 200
         self.COUNT_THRESHOLD = self.INITIALIZE_LENGTH/2
+
         # Initialize subs and pubs
         self.force_pub = rospy.Publisher('/force_recording/force_records', ForceArray, queue_size = 0)
         self.msg_pub = rospy.Publisher('/arduino/msgout', UInt8Array, queue_size = 3)
         self.normforce_pub = rospy.Publisher('/force_recording/normal_force', Float32, queue_size = 0)
         self.norm_force_scaled = Float32()
+
         #FSA 10N sensor with 10-90% Transfer function in 5V output
         self.FORCE_SENSOR_OFFSET_COUNTS = 0.1*1024
         self.FORCE_SENSOR_SCALING = 10/(1024.-2*self.FORCE_SENSOR_OFFSET_COUNTS)
@@ -43,7 +46,7 @@ class Force_Controller():
         self.forces = None
 
         self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
-        self.int_sub = rospy.Subscriber('/'+self.haptic_name+'/intensity/', Int8, self.int_callback, queue_size = 1)
+        self.int_sub = rospy.Subscriber('/'+self.haptic_name+'/intensity/', Int16, self.int_callback, queue_size = 1)
         self.ws_sub = rospy.Subscriber('/cursor_position/workspace', WSArray, self.ws_callback, queue_size = 1)
         self.force_status_sub = rospy.Subscriber('/hue_master/force', Bool, self.forcestatus_callback, queue_size = 1)
         self.forcechan_sub = rospy.Subscriber('/force_recording/force_channel', ForceChannel, self.forcechan_callback, queue_size = 1)
@@ -61,6 +64,19 @@ class Force_Controller():
         self.tan_force[:] = self.nan[:]
         self.x_position[:] = self.nan[:]
         self.intensity[:] = self.nan[:]
+
+        if self.hue_version == 1:
+            self.ufm_A0max = 4.1*rospy.get_param('~ufm_scale')
+            self.ufm_A1max = 1.05*rospy.get_param('~ufm_scale')
+
+            self.ev_A0max = 4.1*rospy.get_param('~ev_scale')
+            self.ev_A1max = 1.05*rospy.get_param('~ev_scale')
+
+            # self.ufm_amp_controller = MAX518_Controller(rospy.get_param('~ufm_i2c_address'))
+            # self.ev_amp_controller = MAX518_Controller(rospy.get_param('~ev_i2c_address'))
+            self.msg.data = tuple(bytearray(self.ev_freq_case + struct.pack('>H', 21000) + b'\x01'))
+            self.msg_pub.publish(self.msg)
+            self.msg.data = tuple(bytearray(self.ufm_freq_case + struct.pack('>H', 30800) + b'\x01'))
 
         time.sleep(2)
         self.initialize()
@@ -98,12 +114,26 @@ class Force_Controller():
                 self.intensity_publish[i][:] = self.nan[:] 
 
     def int_callback(self, intensity):
-        # AD9833 reads phase with decimal shifted eg. 110.1 degrees = 1101
-        self.intensity_latest = int(intensity.data/100. * 180 * 10)
-        self.msg.data = tuple(bytearray(self.phase_case + struct.pack('>H', self.intensity_latest) + self.phase_msg_return))
-        self.msg_pub.publish(self.msg)
-        self.msg.data = tuple(bytearray(self.force_case + self.force_msg_return))
-        self.msg_pub.publish(self.msg)
+        if self.hue_version == 1:
+            # if intensity.data > 0:
+                # self.ufm_amp_controller.DAC_output(0, 0)
+                # self.ev_amp_controller.DAC_output(self.ev_A0max*intensity.data/1000., self.ev_A1max*intensity.data/1000.)
+            # elif intensity.data < 0:
+                # self.ufm_amp_controller.DAC_output(self.ufm_A0max*-1*intensity.data/1000., self.ufm_A1max*-1*intensity.data/1000.)
+                # self.ev_amp_controller.DAC_output(0, 0)
+            # else:
+                # self.ufm_amp_controller.DAC_output(0, 0)
+                # self.ev_amp_controller.DAC_output(0, 0)
+
+        if self.hue_version == 2:
+            # AD9833 reads phase with decimal shifted eg. 110.1 degrees = 1101
+            self.intensity_latest = int(intensity.data/1000. * 90 + 90) * 10
+            self.msg.data = tuple(bytearray(self.phase_case + struct.pack('>H', self.intensity_latest) + b'\x01'))
+            self.msg_pub.publish(self.msg)
+
+        if self.force_status:
+            self.msg.data = tuple(bytearray(self.force_case + self.force_msg_return))
+            self.msg_pub.publish(self.msg)
 
     def msg_callback(self, bytearr):
         case = bytearr.data[0]

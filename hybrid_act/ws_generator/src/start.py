@@ -165,7 +165,7 @@ class Frame(wx.Frame):
             self.rand_output[0] = self.ws_output[0]
             self.rand_output[1] = self.ws_output[1]
             self.define_correct_selection()
-            self.generate_workspace(self.rand_output, 2)
+            self.generate_workspace(self.rand_output, 1)
             self.start_time = time.time()
 
         else:
@@ -190,9 +190,11 @@ class Frame(wx.Frame):
 
     def amplitude_set(self):
         # construct conditions in the form of, test#: test_id, test_actuation, control_actuation, texture, freq
-        self.test_conditions = {0:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",2], \
-                                1:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",5], \
-                                2:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",10]}
+        self.test_conditions = {0:['AMPLITUDE_TEST',"EV","Hybrid","Sinusoid",5], \
+                                1:['AMPLITUDE_TEST',"Hybrid","EV","Sinusoid",5], \
+                                2:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",5], \
+                                3:['AMPLITUDE_TEST',"UFM","Hybrid","Sinusoid",5], \
+                                4:['AMPLITUDE_TEST',"Hybrid","UFM","Sinusoid",5]}
 
     def frequency_set(self):
         # construct conditions in the form of, test#: test_id, actuation, texture, higher_freq, lower_freq
@@ -392,7 +394,6 @@ class Frame(wx.Frame):
         y_ws += int(self.HEIGHT - self.panel.HEIGHT)
 
         hybrid_msg = WSArray()
-        hybrid_msg.header.stamp = rospy.Time(0.0)
         hybrid_msg.y_step = len(y_ws)
         hybrid_msg.y_ws = y_ws.flatten().tolist()
         hybrid_msg.int_compress = ws_compress

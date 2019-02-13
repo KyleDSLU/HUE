@@ -4,7 +4,7 @@ import wx
 import rospy
 from std_msgs.msg import Float32, String
 
-np.set_printoptions(suppress=True)
+np.set_printoptions(threshold=np.inf)
 
 class QuestionPanel(wx.Panel):
     def __init__(self, parent, fontsize):
@@ -138,7 +138,7 @@ def Generate_WS(obj, ws, ws_div):
     WS_SIZE = int(np.ceil(obj.WIDTH/float(WS_DIV)))
 
     # Intitialize int arrays
-    intensity = np.array([[.5]*obj.WIDTH]*len(ws))
+    intensity = np.array([[0.]*obj.WIDTH]*len(ws))
 
     """Determine y workspace bounds"""
     y_ws = np.empty([len(ws),2])
@@ -152,7 +152,6 @@ def Generate_WS(obj, ws, ws_div):
     HORIZ_PIXELS = np.arange(HAPTIC_WIDTH)
 
     # ws has form of channel: actuation, amplitude, texture, frequency
-    print("WS", ws.values())
     for i,value in enumerate(ws.values()):
         actuation = value[0]
         amp = value[1]
@@ -160,24 +159,26 @@ def Generate_WS(obj, ws, ws_div):
         frequency = value[3]
 
         if shape == "Sinusoid":
-            intensity[i][int(obj.WIDTH-obj.HAPTIC_WIDTH):] = amp/2.*np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*frequency*2*np.pi) + .5
+            values = amp*np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*frequency*2*np.pi)
+            intensity[i][int(obj.WIDTH-obj.HAPTIC_WIDTH):] = values[:] 
 
         elif shape  == "Square":
             sinusoid = np.sin(HORIZ_PIXELS/HAPTIC_WIDTH*frequency*2*np.pi)
             ind = [np.where(sinusoid>=0)[0], np.where(sinusoid<0)[0]]
-            intensity[i][ind[0]+int(obj.TEXTBOX_WIDTH)] = amp/2. + 0.5
-            intensity[i][ind[1]+int(obj.TEXTBOX_WIDTH)] = 0.5 - amp/2.
+            intensity[i][ind[0]+int(obj.TEXTBOX_WIDTH)] = amp
+            intensity[i][ind[1]+int(obj.TEXTBOX_WIDTH)] = -amp
 
         elif shape == "Triangular":
-            triangle = np.zeros(int(obj.HAPTIC_WIDTH))
-            slope = frequency/float(obj.HAPTIC_WIDTH)
-            triangle[0] = 0.5 - amp/2.
+            triangle = np.zeros(int(obj.HAPTIC_WIDTH)+1)
+            slope = 2*amp*frequency/float(obj.HAPTIC_WIDTH)
+            triangle[0] = -amp
             for j in range(1,len(triangle)):
-                if triangle[j-1] >= amp/2. + 0.5:
-                    triangle[j] = 0.5 - amp/2.
+                if triangle[j-1] >= amp:
+                    triangle[j] = -amp
                 else:
-                    triangle[j] = min(amp/2.+0.5, triangle[j-1]+slope)
+                    triangle[j] = min(amp, triangle[j-1]+slope)
 
+            print(len(triangle))
             intensity[i][int(obj.WIDTH-obj.HAPTIC_WIDTH):] = triangle
 
         elif shape == "Bump":
@@ -191,19 +192,24 @@ def Generate_WS(obj, ws, ws_div):
             # and y(x=haptic_max) = 1
             c1 = (haptic_switch[0]-biasedcenter)**2
             c2 = (haptic_max[0]-biasedcenter)**2
-            a = (0.5 + amp/2.)/(c1-c2)
-            k = a*c1 - (0.5 - amp/2.)
+            a = (amp)/(c1-c2)
+            k = a*c1 - (-amp)
 
             for index in range(int(obj.WIDTH-obj.HAPTIC_WIDTH),int(obj.WIDTH)):
                 if (index <= haptic_switch[0] or index >= haptic_switch[1]):
-                    intensity[i][index] = (0.5 - amp/2.)
+                    intensity[i][index] = (-amp)
                 else:
                     value = -a*(index-biasedcenter)**2+k
-                    intensity[i][index] = max((0.5-amp/2.),min((0.5+amp/2.),value))
+                    intensity[i][index] = max(-amp,min(amp,value))
+
+        if actuation == "EV":
+            intensity[i][np.where(intensity[i] < 0)[0]] = 0
+        elif actuation == "UFM":
+            intensity[i][np.where(intensity[i] > 0)[0]] = 0
 
     intensity_out = np.zeros([len(intensity),WS_SIZE])
     for j in range(len(intensity)):
-        intensity_out[j][:] = intensity[j][::WS_DIV]*100
+        intensity_out[j][:] = intensity[j][::WS_DIV]*1000
 
     return intensity_out.astype(int), y_ws.astype(int)
 
