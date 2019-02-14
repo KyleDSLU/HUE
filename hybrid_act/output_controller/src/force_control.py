@@ -3,11 +3,14 @@
 import numpy as np
 import struct
 import time
+import os
 
 import rospy
 from std_msgs.msg import Bool, Float32, Int16
 from output_controller.msg import ForceArray, ForceChannel, WSArray, IntArray, UInt8Array
 from MAX518 import MAX518_Controller
+
+import rospkg
 
 class Force_Controller(MAX518_Controller):
 
@@ -72,9 +75,6 @@ class Force_Controller(MAX518_Controller):
             self.ufm_A0max = 4.1*rospy.get_param('~ufm_scale')
             self.ufm_A1max = 1.05*rospy.get_param('~ufm_scale')
 
-            self.ev_A0max = 4.1*rospy.get_param('~ev_scale')
-            self.ev_A1max = 1.05*rospy.get_param('~ev_scale')
-
             self.ufm_amp_controller = MAX518_Controller(rospy.get_param('~ufm_i2c_address'))
             self.ev_amp_controller = MAX518_Controller(rospy.get_param('~ev_i2c_address'))
             self.msg.data = tuple(bytearray(self.ev_freq_case + struct.pack('>H', 21000) + b'\x01'))
@@ -88,12 +88,18 @@ class Force_Controller(MAX518_Controller):
 
     def initialize(self):
         # read voltage solutions from csv
-        self.solutions_read = np.genfromtxt('./csv/solutions.csv', delimiter=',')
-        self.key_read = np.genfromtxt('./csv/key.csv', delimiter=',')
-        self.avg_read = np.genfromtxt('./csv/avg.csv', delimiter=',')
-        self.amp_read = np.genfromtxt('./csv/amp.csv', delimiter=',')
+        rospack = rospkg.RosPack()
+        path = rospack.get_path("output_controller")
+        f_solutions = os.path.join(path,'src/csv/solutions.csv')
+        f_key = os.path.join(path,'src/csv/key.csv')
+        f_avg = os.path.join(path,'src/csv/avg.csv')
+        f_amp = os.path.join(path,'src/csv/amp.csv')
+        self.solutions_read = np.genfromtxt(f_solutions, delimiter=',')
+        self.key_read = np.genfromtxt(f_key, delimiter=',')
+        self.avg_read = np.genfromtxt(f_avg, delimiter=',')
+        self.amp_read = np.genfromtxt(f_amp, delimiter=',')
 
-        self.solutions_read.shape = tuple(key_read.astype(int))
+        self.solutions_read.shape = tuple((self.key_read.astype(int)))
 
         self.msg.data = tuple(bytearray(self.force_case + self.force_msg_return))
         self.msg_pub.publish(self.msg)
@@ -126,21 +132,15 @@ class Force_Controller(MAX518_Controller):
 
     def int_callback(self, intensity):
         if self.hue_version == 1:
-<<<<<<< HEAD
-            intensity = intensity.data
-
-            if intensity.data > 0:
-                output_avg = abs(intensity/1000.)*9.6/1.6
+            if intensity.data > 0 and self.ev_amp_controller:
+                output_avg = abs(intensity.data/1000.)*9.0/1.6
                 output_amp = output_avg*0.6
+                print(output_avg,output_amp)
                 outputs = self.interpolate(output_avg,output_amp)
-                self.ufm_amp_controller.DAC_output(0, 0)
-                self.ev_amp_controller.DAC_output(outputs[0], outputs[1])
-=======
-            if intensity.data > 0 and self.ufm_amp_controller:
-                self.ufm_amp_controller.DAC_output(0, 0)
-                self.ev_amp_controller.DAC_output(self.ev_A0max*intensity.data/1000., self.ev_A1max*intensity.data/1000.)
 
->>>>>>> 32daa0e4a7d9219cf9aca866832881f08d8fe4ce
+                self.ufm_amp_controller.DAC_output(0, 0)
+                self.ev_amp_controller.DAC_output(outputs[0],outputs[1])
+
             elif intensity.data < 0:
                 self.ufm_amp_controller.DAC_output(self.ufm_A0max*-1*intensity.data/1000., self.ufm_A1max*-1*intensity.data/1000.)
                 self.ev_amp_controller.DAC_output(0, 0)
@@ -229,20 +229,19 @@ class Force_Controller(MAX518_Controller):
         return forces
 
     def interpolate(self, avg_desired, amp_desired):
-        avg_ind = np.searchsorted(avg_read,avg_desired,'right')
-        amp_ind = np.searchsorted(amp_read,amp_desired,'right')
+        avg_ind = np.searchsorted(self.avg_read,avg_desired,'right')
+        amp_ind = np.searchsorted(self.amp_read,amp_desired,'right')
 
-        if amp_read[amp_ind-1] == amp_desired:
-            solution = np.zeros_like(solutions_read[amp_ind-1])
-            solution[:] = solutions[amp_ind-1]
+        if self.amp_read[amp_ind-1] == amp_desired:
+            solution = np.zeros_like(self.solutions_read[amp_ind-1])
+            solution[:] = self.solutions_read[amp_ind-1]
 
         else:
-            solution = np.zeros_like(solutions_read[amp_ind])
-            amp_spacing = amp_read[amp_ind] - amp_read[amp_ind-1]
-            amp_diff = amp_desired - amp_read[amp_ind-1]
+            solution = np.zeros_like(self.solutions_read[amp_ind])
+            amp_spacing = self.amp_read[amp_ind] - self.amp_read[amp_ind-1]
+            amp_diff = amp_desired - self.amp_read[amp_ind-1]
             for i in range(len(solution)):
-                ends = [solutions[:,i][amp_ind-1],solutions[:,i][amp_ind]]
-                print(amp_diff, amp_spacing)
+                ends = [self.solutions_read[:,i][amp_ind-1],self.solutions_read[:,i][amp_ind]]
                 solution[i] = np.interp(amp_diff, np.linspace(0,amp_spacing,len(ends)), ends)
             
         return solution
