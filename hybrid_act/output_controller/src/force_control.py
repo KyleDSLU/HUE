@@ -45,6 +45,9 @@ class Force_Controller(MAX518_Controller):
         self.force_status = False
         self.forces = None
 
+        self.ufm_amp_controller = None
+        self.ev_amp_controller = None
+
         self.ir_sub = rospy.Subscriber('/cursor_position/corrected', IntArray, self.cursor_callback, queue_size = 1)
         self.int_sub = rospy.Subscriber('/'+self.haptic_name+'/intensity/', Int16, self.int_callback, queue_size = 1)
         self.ws_sub = rospy.Subscriber('/cursor_position/workspace', WSArray, self.ws_callback, queue_size = 1)
@@ -72,8 +75,8 @@ class Force_Controller(MAX518_Controller):
             self.ev_A0max = 4.1*rospy.get_param('~ev_scale')
             self.ev_A1max = 1.05*rospy.get_param('~ev_scale')
 
-            # self.ufm_amp_controller = MAX518_Controller(rospy.get_param('~ufm_i2c_address'))
-            # self.ev_amp_controller = MAX518_Controller(rospy.get_param('~ev_i2c_address'))
+            self.ufm_amp_controller = MAX518_Controller(rospy.get_param('~ufm_i2c_address'))
+            self.ev_amp_controller = MAX518_Controller(rospy.get_param('~ev_i2c_address'))
             self.msg.data = tuple(bytearray(self.ev_freq_case + struct.pack('>H', 21000) + b'\x01'))
             self.msg_pub.publish(self.msg)
             self.msg.data = tuple(bytearray(self.ufm_freq_case + struct.pack('>H', 30800) + b'\x01'))
@@ -115,15 +118,16 @@ class Force_Controller(MAX518_Controller):
 
     def int_callback(self, intensity):
         if self.hue_version == 1:
-            # if intensity.data > 0:
-                # self.ufm_amp_controller.DAC_output(0, 0)
-                # self.ev_amp_controller.DAC_output(self.ev_A0max*intensity.data/1000., self.ev_A1max*intensity.data/1000.)
-            # elif intensity.data < 0:
-                # self.ufm_amp_controller.DAC_output(self.ufm_A0max*-1*intensity.data/1000., self.ufm_A1max*-1*intensity.data/1000.)
-                # self.ev_amp_controller.DAC_output(0, 0)
-            # else:
-                # self.ufm_amp_controller.DAC_output(0, 0)
-                # self.ev_amp_controller.DAC_output(0, 0)
+            if intensity.data > 0 and self.ufm_amp_controller:
+                self.ufm_amp_controller.DAC_output(0, 0)
+                self.ev_amp_controller.DAC_output(self.ev_A0max*intensity.data/1000., self.ev_A1max*intensity.data/1000.)
+
+            elif intensity.data < 0:
+                self.ufm_amp_controller.DAC_output(self.ufm_A0max*-1*intensity.data/1000., self.ufm_A1max*-1*intensity.data/1000.)
+                self.ev_amp_controller.DAC_output(0, 0)
+            else:
+                self.ufm_amp_controller.DAC_output(0, 0)
+                self.ev_amp_controller.DAC_output(0, 0)
 
         if self.hue_version == 2:
             # AD9833 reads phase with decimal shifted eg. 110.1 degrees = 1101
