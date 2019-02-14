@@ -87,6 +87,14 @@ class Force_Controller(MAX518_Controller):
         rospy.spin()
 
     def initialize(self):
+        # read voltage solutions from csv
+        self.solutions_read = np.genfromtxt('./csv/solutions.csv', delimiter=',')
+        self.key_read = np.genfromtxt('./csv/key.csv', delimiter=',')
+        self.avg_read = np.genfromtxt('./csv/avg.csv', delimiter=',')
+        self.amp_read = np.genfromtxt('./csv/amp.csv', delimiter=',')
+
+        self.solutions_read.shape = tuple(key_read.astype(int))
+
         self.msg.data = tuple(bytearray(self.force_case + self.force_msg_return))
         self.msg_pub.publish(self.msg)
         self.lengths = [0]
@@ -118,10 +126,21 @@ class Force_Controller(MAX518_Controller):
 
     def int_callback(self, intensity):
         if self.hue_version == 1:
+<<<<<<< HEAD
+            intensity = intensity.data
+
+            if intensity.data > 0:
+                output_avg = abs(intensity/1000.)*9.6/1.6
+                output_amp = output_avg*0.6
+                outputs = self.interpolate(output_avg,output_amp)
+                self.ufm_amp_controller.DAC_output(0, 0)
+                self.ev_amp_controller.DAC_output(outputs[0], outputs[1])
+=======
             if intensity.data > 0 and self.ufm_amp_controller:
                 self.ufm_amp_controller.DAC_output(0, 0)
                 self.ev_amp_controller.DAC_output(self.ev_A0max*intensity.data/1000., self.ev_A1max*intensity.data/1000.)
 
+>>>>>>> 32daa0e4a7d9219cf9aca866832881f08d8fe4ce
             elif intensity.data < 0:
                 self.ufm_amp_controller.DAC_output(self.ufm_A0max*-1*intensity.data/1000., self.ufm_A1max*-1*intensity.data/1000.)
                 self.ev_amp_controller.DAC_output(0, 0)
@@ -208,6 +227,25 @@ class Force_Controller(MAX518_Controller):
         for i in range(len(forces)):
             forces[i] = struct.unpack('>H',force_input[2*i:2*i+2])[0]
         return forces
+
+    def interpolate(self, avg_desired, amp_desired):
+        avg_ind = np.searchsorted(avg_read,avg_desired,'right')
+        amp_ind = np.searchsorted(amp_read,amp_desired,'right')
+
+        if amp_read[amp_ind-1] == amp_desired:
+            solution = np.zeros_like(solutions_read[amp_ind-1])
+            solution[:] = solutions[amp_ind-1]
+
+        else:
+            solution = np.zeros_like(solutions_read[amp_ind])
+            amp_spacing = amp_read[amp_ind] - amp_read[amp_ind-1]
+            amp_diff = amp_desired - amp_read[amp_ind-1]
+            for i in range(len(solution)):
+                ends = [solutions[:,i][amp_ind-1],solutions[:,i][amp_ind]]
+                print(amp_diff, amp_spacing)
+                solution[i] = np.interp(amp_diff, np.linspace(0,amp_spacing,len(ends)), ends)
+            
+        return solution
 
     def ws_callback(self, ws):
         self.ystep = ws.ystep
