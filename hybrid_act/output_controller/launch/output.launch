@@ -8,16 +8,15 @@
 
         <param name="ufm_case" value="2"/>
         <param name="ufm_i2c_address" value="45"/>
-        <param name="ufm_scale" value="0.55"/>
 
         <param name="ev_case" value="3"/>
         <param name="ev_i2c_address" value="44"/>
-        <param name="ev_scale" value="0.90"/>
 
         <param name="force_case" value="4"/>
         <param name="force_msg_length" value="9"/>
 
         <param name="phase_case" value="5"/>
+        <param name="version_case" value="6"/>
     </node>
 
 

@@ -6,7 +6,7 @@ import time
 import os
 
 import rospy
-from std_msgs.msg import Bool, Float32, Int16
+from std_msgs.msg import Bool, Float32, Int16, Int8
 from output_controller.msg import ForceArray, ForceChannel, WSArray, IntArray, UInt8Array
 from MAX518 import MAX518_Controller
 
@@ -21,8 +21,8 @@ class Force_Controller(MAX518_Controller):
         self.phase_case = struct.pack('B', rospy.get_param('~phase_case'))
         self.ev_freq_case = struct.pack('B', rospy.get_param('~ev_case'))
         self.ufm_freq_case = struct.pack('B', rospy.get_param('~ufm_case'))
+        self.version_case = struct.pack('B', rospy.get_param('~version_case'))
         self.force_msg_return = struct.pack('B', rospy.get_param('~force_msg_length'))
-        self.hue_version = rospy.get_param('~hue_version')
         self.haptic_name = rospy.get_param('~name')
 
         self.msg = UInt8Array()
@@ -57,6 +57,17 @@ class Force_Controller(MAX518_Controller):
         self.force_status_sub = rospy.Subscriber('/hue_master/force', Bool, self.forcestatus_callback, queue_size = 1)
         self.forcechan_sub = rospy.Subscriber('/force_recording/force_channel', ForceChannel, self.forcechan_callback, queue_size = 1)
         self.msg_return_sub = rospy.Subscriber('/arduino/return_msg', UInt8Array, self.msg_callback, queue_size = 1)
+        self.version_sub = rospy.Subscriber('/hue_master/version', Int8, self.version_callback, queue_size = 1)
+
+        self.ufm_amp_controller = MAX518_Controller(rospy.get_param('~ufm_i2c_address'))
+        self.ev_amp_controller = MAX518_Controller(rospy.get_param('~ev_i2c_address'))
+        self.ufm_A0max = 4.1 # *rospy.get_param('~ufm_scale')
+        self.ufm_A1max = 1.05 # *rospy.get_param('~ufm_scale')
+
+        # EV voltage calculations for V2
+        self.v_t = 9.5
+        self.v_dc = self.v_t/(1.3)
+        self.v_ac = 2*(self.v_t - self.v_dc)
 
         # Initialize force arrays and x_position
         self.nan = np.empty(self.INITIALIZE_LENGTH)
@@ -71,16 +82,6 @@ class Force_Controller(MAX518_Controller):
         self.x_position[:] = self.nan[:]
         self.intensity[:] = self.nan[:]
 
-        if self.hue_version == 1:
-            self.ufm_A0max = 4.1*rospy.get_param('~ufm_scale')
-            self.ufm_A1max = 1.05*rospy.get_param('~ufm_scale')
-
-            self.ufm_amp_controller = MAX518_Controller(rospy.get_param('~ufm_i2c_address'))
-            self.ev_amp_controller = MAX518_Controller(rospy.get_param('~ev_i2c_address'))
-            self.msg.data = tuple(bytearray(self.ev_freq_case + struct.pack('>H', 21000) + b'\x01'))
-            self.msg_pub.publish(self.msg)
-            self.msg.data = tuple(bytearray(self.ufm_freq_case + struct.pack('>H', 30800) + b'\x01'))
-
         time.sleep(2)
         self.initialize()
 
@@ -89,15 +90,6 @@ class Force_Controller(MAX518_Controller):
     def initialize(self):
         # read voltage solutions from csv
         rospack = rospkg.RosPack()
-        path = rospack.get_path("output_controller")
-        f_solutions = os.path.join(path,'src/csv/solutions.csv')
-        f_key = os.path.join(path,'src/csv/key.csv')
-        f_avg = os.path.join(path,'src/csv/avg.csv')
-        f_amp = os.path.join(path,'src/csv/amp.csv')
-        self.solutions_read = np.genfromtxt(f_solutions, delimiter=',')
-        self.key_read = np.genfromtxt(f_key, delimiter=',')
-        self.avg_read = np.genfromtxt(f_avg, delimiter=',')
-        self.amp_read = np.genfromtxt(f_amp, delimiter=',')
 
         self.solutions_read.shape = tuple((self.key_read.astype(int)))
 
@@ -112,6 +104,37 @@ class Force_Controller(MAX518_Controller):
         self.tan_force_publish[0][:] = self.nan[:] 
         self.x_position_publish[0][:] = self.nan[:] 
         self.intensity_publish[0][:] = self.nan[:] 
+
+    def version_callback(self, version):
+        self.hue_version = version
+        path = rospack.get_path("output_controller")
+        dir_path = os.path.join(path, 'src/ev_hue_v' + str(self.hue_version) + '/')
+        f_solutions = os.path.join(path,'solutions.csv')
+        f_key = os.path.join(path,'key.csv')
+        f_avg = os.path.join(path,'avg.csv')
+        f_amp = os.path.join(path,'amp.csv')
+        self.solutions_read = np.genfromtxt(f_solutions, delimiter=',')
+        self.key_read = np.genfromtxt(f_key, delimiter=',')
+        self.avg_read = np.genfromtxt(f_avg, delimiter=',')
+        self.amp_read = np.genfromtxt(f_amp, delimiter=',')
+
+        if self.hue_version == 1:
+            self.msg.data = tuple(bytearray(self.ev_freq_case + struct.pack('>H', 21000) + b'\x01'))
+            self.msg_pub.publish(self.msg)
+            self.msg.data = tuple(bytearray(self.ufm_freq_case + struct.pack('>H', 30800) + b'\x01'))
+            self.msg_pub.publish(self.msg)
+
+        elif self.hue_version == 2:
+            self.msg.data = tuple(bytearray(self.ev_freq_case + struct.pack('>H', 29800) + b'\x01'))
+            self.msg_pub.publish(self.msg)
+            self.msg.data = tuple(bytearray(self.ufm_freq_case + struct.pack('>H', 29800) + b'\x01'))
+            self.msg_pub.publish(self.msg)
+            self.ufm_amp_controller.DAC_output(self.ufm_A0max,self.ufm_A1max)
+            outputs = self.interpolate(self.v_dc,self.v_ac)
+            self.ev_amp_controller.DAC_output(outputs[0], outputs[1])
+
+        # Switch arduino hue version
+        self.msg.data = tuple(bytearray(self.version_case + struct.pack('b', version) + b'\x01'))
 
     def forcechan_callback(self, forcechannel):
         self.channels = forcechannel.channels
@@ -132,17 +155,14 @@ class Force_Controller(MAX518_Controller):
 
     def int_callback(self, intensity):
         if self.hue_version == 1:
-            if intensity.data > 0 and self.ev_amp_controller:
-                output_avg = abs(intensity.data/1000.)*9.0/1.6
-                output_amp = output_avg*0.6
-                print(output_avg,output_amp)
+            if intensity.data > 0:
+                output_avg = 0 # abs(intensity.data/1000.)*9.0/1.6
+                output_amp = (intensity.data/1000.)*5.0
                 outputs = self.interpolate(output_avg,output_amp)
-
                 self.ufm_amp_controller.DAC_output(0, 0)
                 self.ev_amp_controller.DAC_output(outputs[0],outputs[1])
-
             elif intensity.data < 0:
-                self.ufm_amp_controller.DAC_output(self.ufm_A0max*-1*intensity.data/1000., self.ufm_A1max*-1*intensity.data/1000.)
+                self.ufm_amp_controller.DAC_output(abs(intensity.data/1000.)*self.ufm_A0max,abs(intensity.data/1000.)*self.ufm_A1max)
                 self.ev_amp_controller.DAC_output(0, 0)
             else:
                 self.ufm_amp_controller.DAC_output(0, 0)
@@ -150,10 +170,11 @@ class Force_Controller(MAX518_Controller):
 
         if self.hue_version == 2:
             # AD9833 reads phase with decimal shifted eg. 110.1 degrees = 1101
-            self.intensity_latest = int(intensity.data/1000. * 90 + 90) * 10
-            self.msg.data = tuple(bytearray(self.phase_case + struct.pack('>H', self.intensity_latest) + b'\x01'))
+            intensity_to_phase = int(intensity.data/1000. * 90 + 90) * 10
+            self.msg.data = tuple(bytearray(self.phase_case + struct.pack('>H', self.intensity_to_phase) + b'\x01'))
             self.msg_pub.publish(self.msg)
 
+        self.intensity_latest = intensity
         if self.force_status:
             self.msg.data = tuple(bytearray(self.force_case + self.force_msg_return))
             self.msg_pub.publish(self.msg)

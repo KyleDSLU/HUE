@@ -22,6 +22,10 @@ int f2 = A2;
 int f3 = A3;
 int f4 = A4;
 
+int Ad9833reset = 5;
+int relay1 = 6;
+int relay2 = 7;
+
 unsigned short f0_read;
 unsigned short f1_read;
 unsigned short f2_read;
@@ -32,6 +36,7 @@ byte ufmCase = 2;
 byte evCase = 3;
 byte forceCase = 4;
 byte phaseCase = 5;
+byte versionCase = 6;
 byte count = 0;
 byte freq_msb;
 byte freq_lsb;
@@ -39,6 +44,12 @@ byte phase_msb;
 byte phase_lsb;
 unsigned short phase;
 unsigned short freq;
+char versionIn ;
+
+// buffers for parameters
+char hueVersion ;
+unsigned short evFreq ;
+unsigned short ufmFreq ;
 
 int iter = 0;
 bool IGNORE_FLAG;
@@ -47,7 +58,6 @@ char inByte;
 byte checksum;
 
 Adafruit_SI5351 clockgen = Adafruit_SI5351();
-
 
 //--------------------------------------------------------------------------------
 void setup() {
@@ -59,58 +69,18 @@ void setup() {
   pinMode(f3,INPUT);
   pinMode(f4,INPUT);
 
-  /* Initialise the sensor */
-  if (clockgen.begin() != ERROR_NONE)
-  {
-    /* There was a problem detecting the IC ... check your connections */
-    while(1);
-    Serial.println("Here");
-  }
-  /* FRACTIONAL MODE --> More flexible but introduce clock jitter */
-  /* Setup PLLB to fractional mode (XTAL * 16) */
-  /* Setup Multisynth 1 to 25MHz (PLLB/16) */
-  clockgen.setupPLL(SI5351_PLL_B, 16, 0, 1); 
-  clockgen.setupMultisynth(1, SI5351_PLL_B, 16, 0, 1);
-    
-  /* Enable the clocks */
-  clockgen.enableOutputs(true);
-  
+  pinMode(Ad9833reset,OUTPUT);
+  pinMode(relay1,OUTPUT);
+  pinMode(relay2,OUTPUT);
+
+  digitalWrite( Ad9833reset, LOW );
+  UFM.begin();
+  EV.begin();
+  startHueVersion( 1, 21000, 30900 ) ;
 }
 
-// SendTwoByte Int accepts 2 byte int input and sends corresponding msb and lsb
-//   over Serial
-void SendTwoByteInt( int intin ){
-  unsigned char lsb, msb;
-  lsb = ( unsigned char )intin;
-  msb = getsecondbyte(intin);
-  Serial.write(msb);
-  Serial.write(lsb);
-}
-
-unsigned char getsecondbyte( int input ){
-    unsigned char output;
-    output = ( unsigned char )(input >> 8);
-    return output;
-}
-//--------------------------------------------------------------------------------
 
 void loop() {
-  if (count == 0){
-    MD_AD9833::mode_t mode;
-    UFM.begin();
-    EV.begin();
-    mode = MD_AD9833::MODE_SINE;
-    UFM.setMode(mode);
-    EV.setMode(mode);
-    
-    MD_AD9833::channel_t chan;
-    chan = MD_AD9833::CHAN_0;
-    UFM.setFrequency(chan, 31000);
-    EV.setFrequency(chan, 31000); 
-    //EV.setPhase(chan, (uint16_t)100);
-    //UFM.setPhase(chan, (uint16_t)0);    
-    count++;
-  }
 
   if ( Serial.available() > 0 ) {
     inByte = Serial.read();
@@ -133,12 +103,9 @@ void loop() {
 
          checksum = ufmCase + freq_msb + freq_lsb;// + phase_byte;
          freq = ((unsigned short)freq_msb << 8) + freq_lsb;
-         //phase = ((signed short )phase_byte << 8 ) 
-         MD_AD9833::channel_t chan;
-         chan = MD_AD9833::CHAN_0;
-         UFM.setFrequency(chan, freq); 
-         //UFM.setPhase(chan, phase);
 
+         startHueVersion( hueVersion, evFreq, freq ) ;
+         ufmFreq = freq ;
          Serial.write(checksum);
         }
     }
@@ -161,12 +128,10 @@ void loop() {
 
        checksum = evCase + freq_msb + freq_lsb;// + phase_byte;
        freq = ((unsigned short)freq_msb << 8) + freq_lsb;
-       MD_AD9833::channel_t chan;
-       chan = MD_AD9833::CHAN_0;
-       EV.setFrequency(chan, freq);
-       
+       startHueVersion( hueVersion, freq, ufmFreq ) ;
+       evFreq = freq ;
        Serial.write(checksum);
-      }
+       }
     }
 
     else if ( inByte == forceCase ) {
@@ -212,7 +177,84 @@ void loop() {
        EV.setPhase(chan, phase);
        
        Serial.write(checksum);
+     }
+   }
+
+  else if ( inByte == versionCase ) {
+
+      iter = 0;
+      IGNORE_FLAG = false;
+      while( Serial.available() < 1 ) {
+        iter++;
+        // Handling a timeout condition
+        if ( iter > msgTimeout ) {
+            IGNORE_FLAG = true;
+            break;
+        }
       }
+     if ( !IGNORE_FLAG ) {
+       versionIn = Serial.read();
+       checksum = versionCase + versionIn;       // + phase_byte; 
+       startHueVersion( versionIn, evFreq, ufmFreq ) ;
+       Serial.write(checksum);
     }
   }
+ }
+}
+
+//--------------------------------------------------------------------------------
+
+// SendTwoByte Int accepts 2 byte int input and sends corresponding msb and lsb
+//   over Serial
+void SendTwoByteInt( int intin ){
+  unsigned char lsb, msb;
+  lsb = ( unsigned char )intin;
+  msb = getsecondbyte(intin);
+  Serial.write(msb);
+  Serial.write(lsb);
+}
+
+unsigned char getsecondbyte( int input ){
+    unsigned char output;
+    output = ( unsigned char )(input >> 8);
+    return output;
+}
+
+void startHueVersion( char versionIn, short evFreq, short ufmFreq ) 
+{
+  resetAd9833( evFreq, ufmFreq ) ;
+  if ( versionIn == 1 ) { digitalWrite( relay1, LOW ) ; digitalWrite( relay2, LOW ) ; }
+  if ( versionIn == 2 ) { digitalWrite( relay1, HIGH ) ; digitalWrite( relay2, HIGH ) ; }
+  hueVersion = versionIn ;
+}
+
+void resetAd9833( short evFreq, short ufmFreq ) 
+{
+  digitalWrite( Ad9833reset, LOW );
+  delay( 200 ) ;
+  digitalWrite( Ad9833reset, HIGH );
+  /* Initialise the sensor */
+  if (clockgen.begin() != ERROR_NONE)
+  {
+    /* There was a problem detecting the IC ... check your connections */
+    while(1);
+    Serial.println("Here");
+  }
+  /* FRACTIONAL MODE --> More flexible but introduce clock jitter */
+  /* Setup PLLB to fractional mode (XTAL * 16) */
+  /* Setup Multisynth 1 to 25MHz (PLLB/16) */
+  clockgen.setupPLL(SI5351_PLL_B, 16, 0, 1); 
+  clockgen.setupMultisynth(1, SI5351_PLL_B, 16, 0, 1);
+    
+  /* Enable the clocks */
+  clockgen.enableOutputs(true);
+  MD_AD9833::mode_t mode;
+  mode = MD_AD9833::MODE_SINE;
+  UFM.setMode(mode);
+  EV.setMode(mode);
+
+  MD_AD9833::channel_t chan;
+  chan = MD_AD9833::CHAN_0;
+  EV.setFrequency(chan, evFreq); 
+  UFM.setFrequency(chan, ufmFreq);
 }
