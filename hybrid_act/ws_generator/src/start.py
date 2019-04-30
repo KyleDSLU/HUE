@@ -9,7 +9,7 @@ import copy
 import rospy
 import rospkg
 from ws_generator.msg import WSArray, ForceArray, ForceChannel
-from std_msgs.msg import String
+from std_msgs.msg import String, Int8
 
 #Other GUI utilites
 import main
@@ -28,6 +28,7 @@ class Frame(wx.Frame):
         self.ws_hybrid_pub = rospy.Publisher('/cursor_position/workspace/hybrid', WSArray, queue_size = 0)
         self.question_pub = rospy.Publisher('/user_study/question', String, queue_size = 0)
         self.force_sub = rospy.Subscriber('/force_recording/force_records', ForceArray, self.force_callback, queue_size = 1)
+        self.version_pub = rospy.Publisher('/hue_master/version', Int8, queue_size = 0)
 
         self.REFRESH_RATE = 50
         self.SCREEN_LENGTH = 8
@@ -53,6 +54,9 @@ class Frame(wx.Frame):
 
         self.DELTA_AMPLITUDE = 0.05
 
+        # Define reset for switching to HUE V2
+        self.RESET = True
+
         self.ws_output = None
         self.rand_output = None
 
@@ -72,6 +76,7 @@ class Frame(wx.Frame):
         self.THRESHOLD_FLIPS = 0   # variable to save the amount of times user has guessed wrong after guessing right
         self.REP_INCORRECT = 0     # variable to save the amount of times user has guessed wrong after repeatedly guessing wrong
         self.TEST_CASE = 0      #variable to iterate through tests of each testing condition
+        self.version_pub.publish(Int8(1)) #set HUE to version 1
 
         self.lengths = [0,0]
         self.tan_force = []
@@ -101,11 +106,18 @@ class Frame(wx.Frame):
             self.texture_set()
             self.tc = self.test_conditions[0]
             self.TEXTURE_COUNT += 1
-
         else:
-            self.close()
-            return True
-
+            if self.RESET:
+                # Reset for HUE v2
+                self.version_pub.publish(Int8(2)) #set HUE to version 2
+                self.RESET = False
+                self.AMPLITUDE_COUNT = 0
+                self.FREQUENCY_COUNT = 0
+                self.TEXTURE_COUNT = 0
+                self.determine_next_test()
+            else:
+                self.close()
+                return True
         return False
 
 
@@ -190,11 +202,8 @@ class Frame(wx.Frame):
 
     def amplitude_set(self):
         # construct conditions in the form of, test#: test_id, test_actuation, control_actuation, texture, freq
-        self.test_conditions = {0:['AMPLITUDE_TEST',"EV","Hybrid","Sinusoid",5], \
-                                1:['AMPLITUDE_TEST',"Hybrid","EV","Sinusoid",5], \
-                                2:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",5], \
-                                3:['AMPLITUDE_TEST',"UFM","Hybrid","Sinusoid",5], \
-                                4:['AMPLITUDE_TEST',"Hybrid","UFM","Sinusoid",5]}
+        self.test_conditions = {0:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",5], \
+                                1:['AMPLITUDE_TEST',"Hybrid","Hybrid","Sinusoid",2]}
 
     def frequency_set(self):
         # construct conditions in the form of, test#: test_id, actuation, texture, higher_freq, lower_freq

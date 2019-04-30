@@ -19,6 +19,7 @@
         <param name="version_case" value="6"/>
     </node>
 
+    <include file="$(find arduino_control)/launch/arduino.launch"/>
 
 </launch>
 
