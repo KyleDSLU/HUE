@@ -184,7 +184,7 @@ void loop() {
 
       iter = 0;
       IGNORE_FLAG = false;
-      while( Serial.available() < 1 ) {
+      while( Serial.available() < 5 ) {
         iter++;
         // Handling a timeout condition
         if ( iter > msgTimeout ) {
@@ -194,8 +194,20 @@ void loop() {
       }
      if ( !IGNORE_FLAG ) {
        versionIn = Serial.read();
-       checksum = versionCase + versionIn;       // + phase_byte; 
-       startHueVersion( versionIn, evFreq, ufmFreq ) ;
+       hueVersion = versionIn ;
+       checksum = versionCase + versionIn ;
+
+       freq_msb = Serial.read();
+       freq_lsb = Serial.read();
+       evFreq = ((unsigned short) freq_msb << 8) + freq_lsb ;
+       checksum += freq_msb + freq_lsb ;
+
+       freq_msb = Serial.read();
+       freq_lsb = Serial.read();
+       ufmFreq = ((unsigned short) freq_msb << 8) + freq_lsb ;
+       checksum += freq_msb + freq_lsb ;
+
+       startHueVersion( hueVersion, evFreq, ufmFreq ) ;
        Serial.write(checksum);
     }
   }

@@ -127,16 +127,19 @@ class Force_Controller(MAX518_Controller):
         if self.hue_version == 1:
             self.ufm_amp_controller.DAC_output(0,0)
             self.ev_amp_controller.DAC_output(0,0)
-            self.msg.data = tuple(bytearray(self.ev_freq_case + struct.pack('>H', 21000) + b'\x01'))
-            self.msg_pub.publish(self.msg)
-            self.msg.data = tuple(bytearray(self.ufm_freq_case + struct.pack('>H', 30800) + b'\x01'))
+            self.msg.data = tuple(bytearray(self.version_case + struct.pack("B", self.hue_version) + \
+                                                                struct.pack('>H', 21000) + \
+                                                                struct.pack('>H', 30800) + \
+                                                                b'\x01'))
             self.msg_pub.publish(self.msg)
 
         elif self.hue_version == 2:
-            self.msg.data = tuple(bytearray(self.ev_freq_case + struct.pack('>H', 29800) + b'\x01'))
+            self.msg.data = tuple(bytearray(self.version_case + struct.pack("B", self.hue_version) + \
+                                                                struct.pack('>H', 29800) + \
+                                                                struct.pack('>H', 29800) + \
+                                                                b'\x01'))
             self.msg_pub.publish(self.msg)
-            self.msg.data = tuple(bytearray(self.ufm_freq_case + struct.pack('>H', 29800) + b'\x01'))
-            self.msg_pub.publish(self.msg)
+
             self.ufm_amp_controller.DAC_output(self.ufm_A0max,self.ufm_A1max)
             outputs = self.interpolate(self.v_dc,self.v_ac)
             self.ev_amp_controller.DAC_output(outputs[0], outputs[1])
