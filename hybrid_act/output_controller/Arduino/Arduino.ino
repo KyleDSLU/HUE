@@ -79,9 +79,7 @@ void setup() {
   startHueVersion( 1, 21000, 30900 ) ;
 }
 
-
 void loop() {
-
   if ( Serial.available() > 0 ) {
     inByte = Serial.read();
     if ( inByte == ufmCase ) {
@@ -89,129 +87,126 @@ void loop() {
       iter = 0;
       IGNORE_FLAG = false;
       while ( Serial.available() < 2 ) {
-          iter++;
-          // Handling a timeout condition
-          if ( iter > msgTimeout ) {
-              IGNORE_FLAG = true;
-              break;
-          }
-       }
-       if ( !IGNORE_FLAG ) {
-         freq_msb = Serial.read();
-         freq_lsb = Serial.read();
-         //phase_byte = Serial.read();
-
-         checksum = ufmCase + freq_msb + freq_lsb;// + phase_byte;
-         freq = ((unsigned short)freq_msb << 8) + freq_lsb;
-
-         startHueVersion( hueVersion, evFreq, freq ) ;
-         ufmFreq = freq ;
-         Serial.write(checksum);
+        iter++;
+        // Handling a timeout condition
+        if ( iter > msgTimeout ) {
+          IGNORE_FLAG = true;
+          break;
         }
+      }
+      if ( !IGNORE_FLAG ) {
+        freq_msb = Serial.read();
+        freq_lsb = Serial.read();
+        //phase_byte = Serial.read();
+
+        checksum = ufmCase + freq_msb + freq_lsb;// + phase_byte;
+        freq = ((unsigned short)freq_msb << 8) + freq_lsb;
+
+        //startHueVersion( hueVersion, evFreq, freq ) ;
+        ufmFreq = freq ;
+        Serial.write(checksum);
+      }
     }
-    
+
     else if ( inByte == evCase ) {
       // Wait for full incoming packet before moving on
       iter = 0;
       IGNORE_FLAG = false;
       while ( Serial.available() < 2 ) {
-          iter++;
-          // Handling a timeout condition
-          if ( iter > msgTimeout ) {
-              IGNORE_FLAG = true;
-              break;
-          }
-       }
-     if ( !IGNORE_FLAG ) {
-       freq_msb = Serial.read();
-       freq_lsb = Serial.read();
+        iter++;
+        // Handling a timeout condition
+        if ( iter > msgTimeout ) {
+        IGNORE_FLAG = true;
+        break;
+        }
+      }
+      if ( !IGNORE_FLAG ) {
+        freq_msb = Serial.read();
+        freq_lsb = Serial.read();
 
-       checksum = evCase + freq_msb + freq_lsb;// + phase_byte;
-       freq = ((unsigned short)freq_msb << 8) + freq_lsb;
-       startHueVersion( hueVersion, freq, ufmFreq ) ;
-       evFreq = freq ;
-       Serial.write(checksum);
-       }
+        checksum = evCase + freq_msb + freq_lsb;// + phase_byte;
+        freq = ((unsigned short)freq_msb << 8) + freq_lsb;
+        //startHueVersion( hueVersion, freq, ufmFreq ) ;
+        evFreq = freq ;
+        Serial.write(checksum);
+      }
     }
 
     else if ( inByte == forceCase ) {
+      checksum = forceCase;
 
-     checksum = forceCase;
+      f0_read = analogRead(f0);
+      f1_read = analogRead(f1);
+      f2_read = analogRead(f2);
+      f3_read = analogRead(f3);
+      f4_read = analogRead(f4);
 
-     f0_read = analogRead(f0);
-     f1_read = analogRead(f1);
-     f2_read = analogRead(f2);
-     f3_read = analogRead(f3);
-     f4_read = analogRead(f4);
-      
-     Serial.write(checksum);
-     SendTwoByteInt(f0_read);
-     SendTwoByteInt(f1_read);
-     SendTwoByteInt(f2_read);
-     SendTwoByteInt(f3_read);
-     SendTwoByteInt(f4_read);
-    }
- 
-    else if ( inByte == phaseCase ) {
-      // Wait for full incoming packet before moving on
-      iter = 0;
-      IGNORE_FLAG = false;
-      while ( Serial.available() < 2 ) {
+      Serial.write(checksum);
+      SendTwoByteInt(f0_read);
+      SendTwoByteInt(f1_read);
+      SendTwoByteInt(f2_read);
+      SendTwoByteInt(f3_read);
+      SendTwoByteInt(f4_read);
+      }
+
+      else if ( inByte == phaseCase ) {
+        // Wait for full incoming packet before moving on
+        iter = 0;
+        IGNORE_FLAG = false;
+        while ( Serial.available() < 2 ) {
           iter++;
           // Handling a timeout condition
           if ( iter > msgTimeout ) {
-              IGNORE_FLAG = true;
-              break;
+          IGNORE_FLAG = true;
+          break;
           }
-       }
-     if ( !IGNORE_FLAG ) {
-       phase_msb = Serial.read();
-       phase_lsb = Serial.read();
+        }
+        if ( !IGNORE_FLAG ) {
+          phase_msb = Serial.read();
+          phase_lsb = Serial.read();
 
-       phase = ((unsigned short)phase_msb << 8) + phase_lsb;
+          phase = ((unsigned short)phase_msb << 8) + phase_lsb;
 
-       checksum = phaseCase + phase_msb + phase_lsb;       // + phase_byte; 
-       MD_AD9833::channel_t chan;
-       chan = MD_AD9833::CHAN_0;
-       //EV.setFrequency(chan, freq);
-       EV.setPhase(chan, phase);
-       
-       Serial.write(checksum);
-     }
-   }
+          checksum = phaseCase + phase_msb + phase_lsb;       // + phase_byte; 
+          MD_AD9833::channel_t chan;
+          chan = MD_AD9833::CHAN_0;
+          //EV.setFrequency(chan, freq);
+          EV.setPhase(chan, phase);
 
-  else if ( inByte == versionCase ) {
+          Serial.write(checksum);
+        }
+    }
 
+    else if ( inByte == versionCase ) {
       iter = 0;
       IGNORE_FLAG = false;
       while( Serial.available() < 5 ) {
         iter++;
         // Handling a timeout condition
         if ( iter > msgTimeout ) {
-            IGNORE_FLAG = true;
-            break;
+        IGNORE_FLAG = true;
+        break;
         }
       }
-     if ( !IGNORE_FLAG ) {
-       versionIn = Serial.read();
-       hueVersion = versionIn ;
-       checksum = versionCase + versionIn ;
+      if ( !IGNORE_FLAG ) {
+      versionIn = Serial.read();
+      hueVersion = versionIn ;
+      checksum = versionCase + versionIn ;
 
-       freq_msb = Serial.read();
-       freq_lsb = Serial.read();
-       evFreq = ((unsigned short) freq_msb << 8) + freq_lsb ;
-       checksum += freq_msb + freq_lsb ;
+      freq_msb = Serial.read();
+      freq_lsb = Serial.read();
+      evFreq = ((unsigned short) freq_msb << 8) + freq_lsb ;
+      checksum += freq_msb + freq_lsb ;
 
-       freq_msb = Serial.read();
-       freq_lsb = Serial.read();
-       ufmFreq = ((unsigned short) freq_msb << 8) + freq_lsb ;
-       checksum += freq_msb + freq_lsb ;
-
-       startHueVersion( hueVersion, evFreq, ufmFreq ) ;
-       Serial.write(checksum);
+      freq_msb = Serial.read();
+      freq_lsb = Serial.read();
+      ufmFreq = ((unsigned short) freq_msb << 8) + freq_lsb ;
+      checksum += freq_msb + freq_lsb ;
+      Serial.write(checksum);
+      startHueVersion( hueVersion, evFreq, ufmFreq ) ;
+      }
     }
   }
- }
 }
 
 //--------------------------------------------------------------------------------
@@ -243,8 +238,9 @@ void startHueVersion( char versionIn, short evFreq, short ufmFreq )
 void resetAd9833( short evFreq, short ufmFreq ) 
 {
   digitalWrite( Ad9833reset, LOW );
-  delay( 200 ) ;
+  delay( 1500 ) ;
   digitalWrite( Ad9833reset, HIGH );
+  delay( 0 ) ;
   /* Initialise the sensor */
   if (clockgen.begin() != ERROR_NONE)
   {
