@@ -3,7 +3,8 @@ import time
 import struct
 
 import rospy
-from arduino_control.msg import UInt8Array, Bool
+from arduino_control.msg import UInt8Array
+from std_msgs.msg import Bool
 
 import serial
 
@@ -33,14 +34,18 @@ class ArduinoController():
         self.lockout = lockout.data
 
     def msg_callback(self, bytearr):
+        print("Arduino", self.lockout)
         if self.ser and not self.lockout:
             msg = bytearray(bytearr.data[:-1])
             incoming_msgsize = struct.unpack('B', bytearr.data[-1])[0]
+            print("Arduino", msg, incoming_msgsize)
             while not self.serial_available:
+                print("HERE")
                 pass
             self.serial_available = False
             data = self.send_receive_arduino(msg, incoming_msgsize)
             self.serial_available = True
+            print("Arduino2", msg[0], data)
             if len(data) > 0:
                 self.msg_out.data = tuple(bytearray(struct.pack('B', msg[0]) + data))
                 self.return_pub.publish(self.msg_out)
@@ -55,7 +60,7 @@ class ArduinoController():
             if checksum_received:
                 if resend_count < 1e2:
                     resend_count += 1
-                    time.sleep(0.001)
+                    #time.sleep(0.001)
                 else:
                     print('Message Timeout to Arduino')
                     raise RuntimeError
@@ -65,9 +70,10 @@ class ArduinoController():
 
             # Read data packet off of serial line, we know how large this data should be..
             data = self.ser.read(incoming_msgsize)
+            print("Arduinowhile", data, packet[0])
             if len(data) < incoming_msgsize:
                 checksum_received = None
-                time.sleep(0.001)
+                #time.sleep(0.001)
             else:
                 checksum_received = struct.unpack('B', data[0])[0]
         try:

@@ -7,7 +7,7 @@ import rospkg
 import rospy
 from std_msgs.msg import Bool, Float32, Int16, Int8
 from output_controller.msg import ForceArray, ForceChannel, WSArray, IntArray, UInt8Array
-from src.MAX518 import MAX518_Controller
+from MAX518 import MAX518_Controller
 
 import numpy as np
 
@@ -34,6 +34,10 @@ class Force_Controller(MAX518_Controller):
                                              Float32, queue_size=0)
         self.arduino_lockout_pub = rospy.Publisher('/arduino/lockout', \
                                                    Bool, queue_size=0)
+
+        # Initialize constants
+        self.INITIALIZE_LENGTH = 200
+        self.COUNT_THRESHOLD = self.INITIALIZE_LENGTH/2
 
         # Clear Functional members
         self.msg = UInt8Array()
@@ -75,10 +79,6 @@ class Force_Controller(MAX518_Controller):
                                 Int8, self.version_callback, queue_size=1)
 
         time.sleep(2)
-
-        # Initialize constants
-        self.INITIALIZE_LENGTH = 200
-        self.COUNT_THRESHOLD = self.INITIALIZE_LENGTH/2
 
         #FSA 10N sensor with 10-90% Transfer function in 5V output
         self.FORCE_SENSOR_OFFSET_COUNTS = 0.1*1024
@@ -166,6 +166,7 @@ class Force_Controller(MAX518_Controller):
                                             struct.pack('>H', 29800) + \
                                             b'\x01'))
             self.msg_pub.publish(self.msg)
+            print(version.data, self.msg.data)
             # lockout Arduino Comm when switching version
             self.arduino_lockout_pub.publish(Bool(True))
 
@@ -309,7 +310,7 @@ class Force_Controller(MAX518_Controller):
             for i in enumerate(solution):
                 ends = [self.solutions_read[:, i[0]][ind-1], \
                         self.solutions_read[:, i[0]][ind]]
-                solution[i] = np.interp(diff, np.linspace(0,spacing,len(ends)), ends)
+                solution[i[0]] = np.interp(diff, np.linspace(0,spacing,len(ends)), ends)
         return solution
 
     def ws_callback(self, ws):
