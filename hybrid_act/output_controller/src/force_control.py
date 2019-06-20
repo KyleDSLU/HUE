@@ -88,7 +88,7 @@ class Force_Controller(MAX518_Controller):
         self.ufm_amp_controller = MAX518_Controller(rospy.get_param('~ufm_i2c_address'))
         self.ev_amp_controller = MAX518_Controller(rospy.get_param('~ev_i2c_address'))
         self.ufm_A0max = 4.1 # *rospy.get_param('~ufm_scale')
-        self.ufm_A1max = 1.05 # *rospy.get_param('~ufm_scale')
+        self.ufm_A1max = .95 # *rospy.get_param('~ufm_scale')
 
         # EV voltage calculations for V2
         self.v_t = 4.75
@@ -166,7 +166,6 @@ class Force_Controller(MAX518_Controller):
                                             struct.pack('>H', 29800) + \
                                             b'\x01'))
             self.msg_pub.publish(self.msg)
-            print(version.data, self.msg.data)
             # lockout Arduino Comm when switching version
             self.arduino_lockout_pub.publish(Bool(True))
 
@@ -174,7 +173,7 @@ class Force_Controller(MAX518_Controller):
             outputs = self.interpolate(self.v_ac)
             self.ev_amp_controller.DAC_output(outputs[0], outputs[1])
 
-        time.sleep(2.5)
+        time.sleep(2.0)
         self.arduino_lockout_pub.publish(Bool(False))
 
     def forcechan_callback(self, forcechannel):
@@ -197,7 +196,7 @@ class Force_Controller(MAX518_Controller):
     def int_callback(self, intensity):
         if self.hue_version == 1:
             if intensity.data > 0:
-                output_amp = (intensity.data/1000.)*5.0
+                output_amp = (intensity.data/1000.)*4.8
                 outputs = self.interpolate(output_amp)
                 self.ufm_amp_controller.DAC_output(0, 0)
                 self.ev_amp_controller.DAC_output(outputs[0], outputs[1])

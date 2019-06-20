@@ -1,3 +1,4 @@
+
 //----------------------------------------------------------------------
 // Kyle DeProw
 // 10-14-2018
@@ -22,6 +23,7 @@ int f2 = A2;
 int f3 = A3;
 int f4 = A4;
 
+int clockReset = 4;
 int Ad9833reset = 5;
 int relay1 = 6;
 int relay2 = 7;
@@ -69,13 +71,34 @@ void setup() {
   pinMode(f3,INPUT);
   pinMode(f4,INPUT);
 
+  pinMode(clockReset,OUTPUT);
   pinMode(Ad9833reset,OUTPUT);
   pinMode(relay1,OUTPUT);
   pinMode(relay2,OUTPUT);
 
+  digitalWrite( clockReset, LOW );
   digitalWrite( Ad9833reset, LOW );
   UFM.begin();
   EV.begin();
+
+  digitalWrite( clockReset, HIGH );
+
+  delay(1000);
+  /* Initialise the sensor */
+  if (clockgen.begin() != ERROR_NONE)
+  {
+    /* There was a problem detecting the IC ... check your connections */
+    while(1);
+  }
+  /* FRACTIONAL MODE --> More flexible but introduce clock jitter */
+  /* Setup PLLB to fractional mode (XTAL * 16) */
+  /* Setup Multisynth 1 to 25MHz (PLLB/16) */
+  clockgen.setupPLL(SI5351_PLL_B, 16, 0, 1); 
+  clockgen.setupMultisynth(1, SI5351_PLL_B, 16, 0, 1);
+    
+  /* Enable the clocks */
+  clockgen.enableOutputs(true);
+
   startHueVersion( 1, 21000, 30900 ) ;
 }
 
@@ -229,9 +252,9 @@ unsigned char getsecondbyte( int input ){
 
 void startHueVersion( char versionIn, short evFreq, short ufmFreq ) 
 {
-  resetAd9833( evFreq, ufmFreq ) ;
   if ( versionIn == 1 ) { digitalWrite( relay1, LOW ) ; digitalWrite( relay2, LOW ) ; }
   if ( versionIn == 2 ) { digitalWrite( relay1, HIGH ) ; digitalWrite( relay2, HIGH ) ; }
+  resetAd9833( evFreq, ufmFreq ) ;
   hueVersion = versionIn ;
 }
 
@@ -241,21 +264,6 @@ void resetAd9833( short evFreq, short ufmFreq )
   delay( 1500 ) ;
   digitalWrite( Ad9833reset, HIGH );
   delay( 0 ) ;
-  /* Initialise the sensor */
-  if (clockgen.begin() != ERROR_NONE)
-  {
-    /* There was a problem detecting the IC ... check your connections */
-    while(1);
-    Serial.println("Here");
-  }
-  /* FRACTIONAL MODE --> More flexible but introduce clock jitter */
-  /* Setup PLLB to fractional mode (XTAL * 16) */
-  /* Setup Multisynth 1 to 25MHz (PLLB/16) */
-  clockgen.setupPLL(SI5351_PLL_B, 16, 0, 1); 
-  clockgen.setupMultisynth(1, SI5351_PLL_B, 16, 0, 1);
-    
-  /* Enable the clocks */
-  clockgen.enableOutputs(true);
   MD_AD9833::mode_t mode;
   mode = MD_AD9833::MODE_SINE;
   UFM.setMode(mode);
