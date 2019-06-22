@@ -4,7 +4,8 @@ import struct
 import time
 import os
 import rospkg
-import rospy from std_msgs.msg import Bool, Float32, Int16, UInt16MultiArray, Int8
+import rospy 
+from std_msgs.msg import Bool, Float32, Int16, UInt16MultiArray, Int8
 from output_controller.msg import ForceArray, ForceChannel, WSArray, IntArray, UInt8Array
 from MAX518 import MAX518_Controller
 
@@ -101,9 +102,6 @@ class Force_Controller(MAX518_Controller):
         # Turn off Arduino Lockout
         self.arduino_lockout_pub.publish(Bool(False))
 
-        # Default to version 1
-        self.version_callback(Int8(1))
-
         # Initialize force arrays and x_position
         self.nan = np.empty(self.INITIALIZE_LENGTH)
         self.nan[:] = np.nan
@@ -134,7 +132,10 @@ class Force_Controller(MAX518_Controller):
         self.hue_version = 1
         self.ufm_freq = 21000
         self.ev_freq = 30800
-        self.freq_callback(UInt16MultiArray([self.ufm_freq, self.ev_freq])
+        output = UInt16MultiArray()
+        output.data = [self.ufm_freq, self.ev_freq]
+
+        self.freq_callback(output)
 
         rospy.spin()
 
