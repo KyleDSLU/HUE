@@ -4,8 +4,7 @@ import struct
 import time
 import os
 import rospkg
-import rospy
-from std_msgs.msg import Bool, Float32, Int16, Int8
+import rospy from std_msgs.msg import Bool, Float32, Int16, UInt16MultiArray, Int8
 from output_controller.msg import ForceArray, ForceChannel, WSArray, IntArray, UInt8Array
 from MAX518 import MAX518_Controller
 
@@ -67,16 +66,20 @@ class Force_Controller(MAX518_Controller):
                                        WSArray, self.ws_callback, queue_size=1)
 
         self.force_status_sub = rospy.Subscriber('/hue_master/force', \
-                                    Bool, self.forcestatus_callback, queue_size=1)
+                                                 Bool, self.forcestatus_callback, queue_size=1)
 
         self.forcechan_sub = rospy.Subscriber('/force_recording/force_channel', \
-                                ForceChannel, self.forcechan_callback, queue_size=1)
+                                              ForceChannel, self.forcechan_callback, queue_size=1)
 
         self.msg_return_sub = rospy.Subscriber('/arduino/return_msg', \
-                                UInt8Array, self.msg_callback, queue_size=1)
+                                               UInt8Array, self.msg_callback, queue_size=1)
 
         self.version_sub = rospy.Subscriber('/hue_master/version', \
-                                Int8, self.version_callback, queue_size=1)
+                                            Int8, self.version_callback, queue_size=1)
+
+
+        self.freq_sub = rospy.Subscriber('/'+self.haptic_name+'/freqs', \
+                                         UInt16MultiArray, self.freq_callback, queue_size=1)
 
         time.sleep(2)
 
@@ -127,6 +130,12 @@ class Force_Controller(MAX518_Controller):
         self.x_position_publish[0][:] = self.nan[:]
         self.intensity_publish[0][:] = self.nan[:]
 
+        # default to HUE version 1
+        self.hue_version = 1
+        self.ufm_freq = 21000
+        self.ev_freq = 30800
+        self.freq_callback(UInt16MultiArray([self.ufm_freq, self.ev_freq])
+
         rospy.spin()
 
     def version_callback(self, version):
@@ -152,18 +161,20 @@ class Force_Controller(MAX518_Controller):
             self.ev_amp_controller.DAC_output(0, 0)
             self.msg.data = tuple(bytearray(self.version_case + \
                                             struct.pack("B", self.hue_version) + \
-                                            struct.pack('>H', 21000) + \
-                                            struct.pack('>H', 30800) + \
+                                            struct.pack('>H', self.ufm_freq) + \
+                                            struct.pack('>H', self.ev_freq) + \
                                             b'\x01'))
             self.msg_pub.publish(self.msg)
             # lockout Arduino Comm when switching version
             self.arduino_lockout_pub.publish(Bool(True))
+            time.sleep(1.0)
+            self.arduino_lockout_pub.publish(Bool(False))
 
         elif self.hue_version == 2:
             self.msg.data = tuple(bytearray(self.version_case + \
                                             struct.pack("B", self.hue_version) + \
-                                            struct.pack('>H', 29800) + \
-                                            struct.pack('>H', 29800) + \
+                                            struct.pack('>H', self.ufm_freq) + \
+                                            struct.pack('>H', self.ev_freq) + \
                                             b'\x01'))
             self.msg_pub.publish(self.msg)
             # lockout Arduino Comm when switching version
@@ -172,9 +183,8 @@ class Force_Controller(MAX518_Controller):
             self.ufm_amp_controller.DAC_output(self.ufm_A0max, self.ufm_A1max)
             outputs = self.interpolate(self.v_ac)
             self.ev_amp_controller.DAC_output(outputs[0], outputs[1])
-
-        time.sleep(2.0)
-        self.arduino_lockout_pub.publish(Bool(False))
+            time.sleep(1.0)
+            self.arduino_lockout_pub.publish(Bool(False))
 
     def forcechan_callback(self, forcechannel):
         self.channels = forcechannel.channels
@@ -315,6 +325,10 @@ class Force_Controller(MAX518_Controller):
     def ws_callback(self, ws):
         self.ystep = ws.ystep
         self.y_ws = ws.y_ws
+
+    def freq_callback(self, freq):
+        self.ufm_freq, self.ev_freq = freq.data[0], freq.data[1]
+        self.version_callback(Int8(self.hue_version))
 
 if __name__ == '__main__':
     controller = Force_Controller()

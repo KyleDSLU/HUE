@@ -1,4 +1,3 @@
-
 //----------------------------------------------------------------------
 // Kyle DeProw
 // 10-14-2018
@@ -34,11 +33,14 @@ unsigned short f2_read;
 unsigned short f3_read;
 unsigned short f4_read;
 
+// deprecated cases, here for historical record
 byte ufmCase = 2;
 byte evCase = 3;
+// Used cases
 byte forceCase = 4;
 byte phaseCase = 5;
 byte versionCase = 6;
+
 byte count = 0;
 byte freq_msb;
 byte freq_lsb;
@@ -98,64 +100,13 @@ void setup() {
     
   /* Enable the clocks */
   clockgen.enableOutputs(true);
-
-  startHueVersion( 1, 21000, 30900 ) ;
 }
 
 void loop() {
   if ( Serial.available() > 0 ) {
     inByte = Serial.read();
-    if ( inByte == ufmCase ) {
-      // Wait for full incoming packet before moving on
-      iter = 0;
-      IGNORE_FLAG = false;
-      while ( Serial.available() < 2 ) {
-        iter++;
-        // Handling a timeout condition
-        if ( iter > msgTimeout ) {
-          IGNORE_FLAG = true;
-          break;
-        }
-      }
-      if ( !IGNORE_FLAG ) {
-        freq_msb = Serial.read();
-        freq_lsb = Serial.read();
-        //phase_byte = Serial.read();
 
-        checksum = ufmCase + freq_msb + freq_lsb;// + phase_byte;
-        freq = ((unsigned short)freq_msb << 8) + freq_lsb;
-
-        //startHueVersion( hueVersion, evFreq, freq ) ;
-        ufmFreq = freq ;
-        Serial.write(checksum);
-      }
-    }
-
-    else if ( inByte == evCase ) {
-      // Wait for full incoming packet before moving on
-      iter = 0;
-      IGNORE_FLAG = false;
-      while ( Serial.available() < 2 ) {
-        iter++;
-        // Handling a timeout condition
-        if ( iter > msgTimeout ) {
-        IGNORE_FLAG = true;
-        break;
-        }
-      }
-      if ( !IGNORE_FLAG ) {
-        freq_msb = Serial.read();
-        freq_lsb = Serial.read();
-
-        checksum = evCase + freq_msb + freq_lsb;// + phase_byte;
-        freq = ((unsigned short)freq_msb << 8) + freq_lsb;
-        //startHueVersion( hueVersion, freq, ufmFreq ) ;
-        evFreq = freq ;
-        Serial.write(checksum);
-      }
-    }
-
-    else if ( inByte == forceCase ) {
+    if ( inByte == forceCase ) {
       checksum = forceCase;
 
       f0_read = analogRead(f0);
@@ -252,8 +203,8 @@ unsigned char getsecondbyte( int input ){
 
 void startHueVersion( char versionIn, short evFreq, short ufmFreq ) 
 {
-  if ( versionIn == 1 ) { digitalWrite( relay1, LOW ) ; digitalWrite( relay2, LOW ) ; }
-  if ( versionIn == 2 ) { digitalWrite( relay1, HIGH ) ; digitalWrite( relay2, HIGH ) ; }
+  if ( versionIn == 1 ) { digitalWrite( relay1, HIGH ) ; digitalWrite( relay2, HIGH ) ; }
+  if ( versionIn == 2 ) { digitalWrite( relay1, LOW ) ; digitalWrite( relay2, LOW ) ; }
   resetAd9833( evFreq, ufmFreq ) ;
   hueVersion = versionIn ;
 }
@@ -261,7 +212,7 @@ void startHueVersion( char versionIn, short evFreq, short ufmFreq )
 void resetAd9833( short evFreq, short ufmFreq ) 
 {
   digitalWrite( Ad9833reset, LOW );
-  delay( 1500 ) ;
+  delay( 500 ) ;
   digitalWrite( Ad9833reset, HIGH );
   delay( 0 ) ;
   MD_AD9833::mode_t mode;
