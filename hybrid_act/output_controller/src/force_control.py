@@ -17,8 +17,7 @@ class Force_Controller(MAX518_Controller):
         rospy.init_node('force_control')
         self.force_case = struct.pack('B', rospy.get_param('~force_case'))
         self.phase_case = struct.pack('B', rospy.get_param('~phase_case'))
-        self.ev_freq_case = struct.pack('B', rospy.get_param('~ev_case'))
-        self.ufm_freq_case = struct.pack('B', rospy.get_param('~ufm_case'))
+        self.freq_case = struct.pack('B', rospy.get_param('~freq_case'))
         self.version_case = struct.pack('B', rospy.get_param('~version_case'))
         self.force_msg_return = struct.pack('B', rospy.get_param('~force_msg_length'))
         self.haptic_name = rospy.get_param('~name')
@@ -28,7 +27,7 @@ class Force_Controller(MAX518_Controller):
                                          ForceArray, queue_size=0)
 
         self.msg_pub = rospy.Publisher('/arduino/msgout', \
-                                       UInt8Array, queue_size=3)
+                                       UInt8Array, queue_size=1)
 
         self.normforce_pub = rospy.Publisher('/force_recording/normal_force', \
                                              Float32, queue_size=0)
@@ -134,8 +133,8 @@ class Force_Controller(MAX518_Controller):
         self.ev_freq = 30800
         output = UInt16MultiArray()
         output.data = [self.ufm_freq, self.ev_freq]
-
         self.freq_callback(output)
+        self.version_callback(Int8(self.hue_version))
 
         rospy.spin()
 
@@ -162,8 +161,6 @@ class Force_Controller(MAX518_Controller):
             self.ev_amp_controller.DAC_output(0, 0)
             self.msg.data = tuple(bytearray(self.version_case + \
                                             struct.pack("B", self.hue_version) + \
-                                            struct.pack('>H', self.ufm_freq) + \
-                                            struct.pack('>H', self.ev_freq) + \
                                             b'\x01'))
             self.msg_pub.publish(self.msg)
             # lockout Arduino Comm when switching version
@@ -174,8 +171,6 @@ class Force_Controller(MAX518_Controller):
         elif self.hue_version == 2:
             self.msg.data = tuple(bytearray(self.version_case + \
                                             struct.pack("B", self.hue_version) + \
-                                            struct.pack('>H', self.ufm_freq) + \
-                                            struct.pack('>H', self.ev_freq) + \
                                             b'\x01'))
             self.msg_pub.publish(self.msg)
             # lockout Arduino Comm when switching version
@@ -329,7 +324,12 @@ class Force_Controller(MAX518_Controller):
 
     def freq_callback(self, freq):
         self.ufm_freq, self.ev_freq = freq.data[0], freq.data[1]
-        self.version_callback(Int8(self.hue_version))
+        self.msg.data = tuple(bytearray(self.freq_case + \
+                                        struct.pack('>H', self.ufm_freq) + \
+                                        struct.pack('>H', self.ev_freq) + \
+                                        b'\x01'))
+        self.msg_pub.publish(self.msg)
+
 
 if __name__ == '__main__':
     controller = Force_Controller()
