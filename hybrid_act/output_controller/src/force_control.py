@@ -134,7 +134,7 @@ class Force_Controller(MAX518_Controller):
         output = UInt16MultiArray()
         output.data = [self.ufm_freq, self.ev_freq]
         self.freq_callback(output)
-        self.version_callback(Int8(self.hue_version))
+        #self.version_callback(Int8(self.hue_version))
 
         rospy.spin()
 
@@ -161,6 +161,8 @@ class Force_Controller(MAX518_Controller):
             self.ev_amp_controller.DAC_output(0, 0)
             self.msg.data = tuple(bytearray(self.version_case + \
                                             struct.pack("B", self.hue_version) + \
+                                            struct.pack('>H', self.ufm_freq) + \
+                                            struct.pack('>H', self.ev_freq) + \
                                             b'\x01'))
             self.msg_pub.publish(self.msg)
             # lockout Arduino Comm when switching version
@@ -171,6 +173,8 @@ class Force_Controller(MAX518_Controller):
         elif self.hue_version == 2:
             self.msg.data = tuple(bytearray(self.version_case + \
                                             struct.pack("B", self.hue_version) + \
+                                            struct.pack('>H', self.ufm_freq) + \
+                                            struct.pack('>H', self.ev_freq) + \
                                             b'\x01'))
             self.msg_pub.publish(self.msg)
             # lockout Arduino Comm when switching version
@@ -324,12 +328,7 @@ class Force_Controller(MAX518_Controller):
 
     def freq_callback(self, freq):
         self.ufm_freq, self.ev_freq = freq.data[0], freq.data[1]
-        self.msg.data = tuple(bytearray(self.freq_case + \
-                                        struct.pack('>H', self.ufm_freq) + \
-                                        struct.pack('>H', self.ev_freq) + \
-                                        b'\x01'))
-        self.msg_pub.publish(self.msg)
-
+        self.version_callback(Int8(self.hue_version))
 
 if __name__ == '__main__':
     controller = Force_Controller()

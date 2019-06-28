@@ -33,17 +33,19 @@ unsigned short f2_read;
 unsigned short f3_read;
 unsigned short f4_read;
 
-// deprecated cases, here for historical record
-byte ufmCase = 2;
+// deprecated cases, here for historical record byte ufmCase = 2;
 byte evCase = 3;
+byte freqCase = 3;
 // Used cases
 byte forceCase = 4;
 byte phaseCase = 5;
 byte versionCase = 6;
 
 byte count = 0;
-byte freq_msb;
-byte freq_lsb;
+byte ufmFreqMsb;
+byte ufmFreqLsb;
+byte evFreqMsb;
+byte evFreqLsb;
 byte phase_msb;
 byte phase_lsb;
 unsigned short phase;
@@ -59,13 +61,13 @@ int iter = 0;
 bool IGNORE_FLAG;
 int msgTimeout = 1e4;
 char inByte;
-byte checksum;
+int checksum;
 
 Adafruit_SI5351 clockgen = Adafruit_SI5351();
 
 //--------------------------------------------------------------------------------
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(57600);
 
   pinMode(f0,INPUT);
   pinMode(f1,INPUT);
@@ -80,9 +82,6 @@ void setup() {
 
   digitalWrite( clockReset, LOW );
   digitalWrite( Ad9833reset, LOW );
-  UFM.begin();
-  EV.begin();
-
   digitalWrite( clockReset, HIGH );
 
   delay(1000);
@@ -100,12 +99,57 @@ void setup() {
     
   /* Enable the clocks */
   clockgen.enableOutputs(true);
+
+  UFM.begin();
+  EV.begin();
+  //startHueVersion( 1, 31000, 31000 );
 }
 
 void loop() {
   if ( Serial.available() > 0 ) {
     inByte = Serial.read();
 
+    if ( inByte == freqCase )
+    {
+      // Wait for full incoming packet before moving on
+      iter = 0;
+      IGNORE_FLAG = false;
+      while ( Serial.available() < 4 ) {
+        iter++;
+        // Handling a timeout condition
+        if ( iter > msgTimeout ) {
+        IGNORE_FLAG = true;
+        break;
+        }
+      }
+
+      if ( !IGNORE_FLAG ) 
+      {
+        checksum = freqCase;
+        
+        ufmFreqMsb = Serial.read();
+        ufmFreqLsb = Serial.read();
+        evFreqMsb = Serial.read();
+        evFreqLsb = Serial.read();
+  
+        Serial.write(freqCase);
+        Serial.write(ufmFreqMsb);
+        Serial.write(ufmFreqLsb);
+        Serial.write(evFreqMsb);
+        Serial.write(evFreqLsb);
+        checksum += ufmFreqMsb ;
+        checksum += ufmFreqLsb ;
+        checksum += evFreqMsb ;
+        checksum += evFreqLsb ;
+        
+        ufmFreq = ((unsigned short) ufmFreqMsb << 8) + ufmFreqMsb ;
+        evFreq = ((unsigned short) evFreqMsb << 8) + evFreqLsb ;
+        checksum = checksum & 0xff;
+        Serial.write(checksum);
+      }
+    }
+
+  
     if ( inByte == forceCase ) {
       checksum = forceCase;
 
@@ -115,7 +159,7 @@ void loop() {
       f3_read = analogRead(f3);
       f4_read = analogRead(f4);
 
-      Serial.write(checksum);
+      Serial.write(checksum & 0xff);
       SendTwoByteInt(f0_read);
       SendTwoByteInt(f1_read);
       SendTwoByteInt(f2_read);
@@ -123,32 +167,31 @@ void loop() {
       SendTwoByteInt(f4_read);
       }
 
-      else if ( inByte == phaseCase ) {
-        // Wait for full incoming packet before moving on
-        iter = 0;
-        IGNORE_FLAG = false;
-        while ( Serial.available() < 2 ) {
-          iter++;
-          // Handling a timeout condition
-          if ( iter > msgTimeout ) {
-          IGNORE_FLAG = true;
-          break;
-          }
+    else if ( inByte == phaseCase ) {
+      // Wait for full incoming packet before moving on
+      iter = 0;
+      IGNORE_FLAG = false;
+      while ( Serial.available() < 2 ) {
+        iter++;
+        // Handling a timeout condition
+        if ( iter > msgTimeout ) {
+        IGNORE_FLAG = true;
+        break;
         }
-        if ( !IGNORE_FLAG ) {
-          phase_msb = Serial.read();
-          phase_lsb = Serial.read();
+      }
+      if ( !IGNORE_FLAG ) {
+        phase_msb = Serial.read();
+        phase_lsb = Serial.read();
 
-          phase = ((unsigned short)phase_msb << 8) + phase_lsb;
+        phase = ((unsigned short)phase_msb << 8) + phase_lsb;
 
-          checksum = phaseCase + phase_msb + phase_lsb;       // + phase_byte; 
-          MD_AD9833::channel_t chan;
-          chan = MD_AD9833::CHAN_0;
-          //EV.setFrequency(chan, freq);
-          EV.setPhase(chan, phase);
+        checksum = phaseCase + phase_msb + phase_lsb;       // + phase_byte; 
+        MD_AD9833::channel_t chan;
+        chan = MD_AD9833::CHAN_0;
+        EV.setPhase(chan, phase);
 
-          Serial.write(checksum);
-        }
+        Serial.write(checksum & 0xff);
+      }
     }
 
     else if ( inByte == versionCase ) {
@@ -162,22 +205,27 @@ void loop() {
         break;
         }
       }
-      if ( !IGNORE_FLAG ) {
-      versionIn = Serial.read();
-      hueVersion = versionIn ;
-      checksum = versionCase + versionIn ;
 
-      freq_msb = Serial.read();
-      freq_lsb = Serial.read();
-      evFreq = ((unsigned short) freq_msb << 8) + freq_lsb ;
-      checksum += freq_msb + freq_lsb ;
+      if ( !IGNORE_FLAG ) 
+      {
+        checksum = versionCase;
+        hueVersion = Serial.read() ;
+        ufmFreqMsb = Serial.read();
+        ufmFreqLsb = Serial.read();
+        evFreqMsb = Serial.read();
+        evFreqLsb = Serial.read();
 
-      freq_msb = Serial.read();
-      freq_lsb = Serial.read();
-      ufmFreq = ((unsigned short) freq_msb << 8) + freq_lsb ;
-      checksum += freq_msb + freq_lsb ;
-      Serial.write(checksum);
-      startHueVersion( hueVersion, evFreq, ufmFreq ) ;
+        checksum += hueVersion ;
+        checksum += ufmFreqMsb ;
+        checksum += ufmFreqLsb ;
+        checksum += evFreqMsb ;
+        checksum += evFreqLsb ;
+        
+        ufmFreq = ((unsigned short) ufmFreqMsb << 8) + ufmFreqMsb ;
+        evFreq = ((unsigned short) evFreqMsb << 8) + evFreqLsb ;
+        checksum = checksum & 0xff;
+        Serial.write(checksum);
+        startHueVersion( hueVersion, ufmFreq, evFreq ) ;
       }
     }
   }
@@ -201,7 +249,7 @@ unsigned char getsecondbyte( int input ){
     return output;
 }
 
-void startHueVersion( char versionIn, short evFreq, short ufmFreq ) 
+void startHueVersion( char versionIn, short ufmFreq, short evFreq ) 
 {
   if ( versionIn == 1 ) { digitalWrite( relay1, HIGH ) ; digitalWrite( relay2, HIGH ) ; }
   if ( versionIn == 2 ) { digitalWrite( relay1, LOW ) ; digitalWrite( relay2, LOW ) ; }
@@ -209,12 +257,12 @@ void startHueVersion( char versionIn, short evFreq, short ufmFreq )
   hueVersion = versionIn ;
 }
 
-void resetAd9833( short evFreq, short ufmFreq ) 
+void resetAd9833( short ufmFreq, short evFreq ) 
 {
   digitalWrite( Ad9833reset, LOW );
-  delay( 500 ) ;
+  delay( 1500 ) ;
   digitalWrite( Ad9833reset, HIGH );
-  delay( 0 ) ;
+  delay( 200 ) ;
   MD_AD9833::mode_t mode;
   mode = MD_AD9833::MODE_SINE;
   UFM.setMode(mode);
